@@ -69,4 +69,11 @@ public class PinTests
         _testOutputHelper.WriteLine("Mod p3");
         p3.Scale = 2;
     }
+
+    [Fact]
+    public void Test3()
+    {
+        var r1 = new RectangleF(new PointF(2, 2), new SizeF(5, 5));
+        var r2 = new RectangleF(new PointF(2, 2), new PointF(7, 7));
+    }
 }

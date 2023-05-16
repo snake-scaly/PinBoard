@@ -22,6 +22,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     private readonly Subject<bool> _invalidated = new();
     private readonly Subject<Cursor> _cursor = new();
     private readonly Subject<PointF> _showContextMenu = new();
+    private readonly Subject<IEditMode> _newEditMode = new();
     
     private readonly CompositeDisposable _disposables = new();
 
@@ -31,6 +32,8 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         _viewModel = viewModel;
         _settings = settings;
         
+        Cursor = _cursor.DistinctUntilChanged();
+
         this.WhenAnyValue(x => x.UnderCursor).Subscribe(_ => _invalidated.OnNext(true));
         
         var boardChanges = _board.Pins
@@ -51,46 +54,28 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         var pinChanges = boardChanges.Select(_ => true);
         var topologyChanges = this.WhenAnyValue(x => x.UnderCursor).Select(_ => true).Merge(pinChanges);
 
-        var pullForwardCommand = new Command((_, _) =>
-        {
-            var i = _board.Pins.Items.IndexOf(UnderCursor);
-            _board.Pins.Move(i, i + 1);
-        })
-        {
-            MenuText = "Pull Forward"
-        };
-        topologyChanges.Subscribe(_ => pullForwardCommand.Enabled = UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor) < _board.Pins.Count - 1);
+        var pullForwardCommand = new Command(PullForwardExecute) { MenuText = "Pull Forward" };
+        topologyChanges.Subscribe(_ => pullForwardCommand.Enabled = PullForwardCanExecute());
 
-        var pushBackCommand = new Command((_, _) =>
-        {
-            var i = _board.Pins.Items.IndexOf(UnderCursor);
-            _board.Pins.Move(i, i - 1);
-        })
-        {
-            MenuText = "Push Back"
-        };
-        topologyChanges.Subscribe(_ => pushBackCommand.Enabled = UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor) > 0);
+        var pushBackCommand = new Command(PushBackExecute) { MenuText = "Push Back" };
+        topologyChanges.Subscribe(_ => pushBackCommand.Enabled = PushBackCanExecute());
 
-        var delPinCommand = new Command((_, _) => _board.Pins.Remove(UnderCursor))
-        {
-            MenuText = "Remove"
-        };
-        this.WhenAnyValue(x => x.UnderCursor).Subscribe(x => delPinCommand.Enabled = x != null);
+        var delPinCommand = new Command(DelPinExecute) { MenuText = "Remove" };
+        this.WhenAnyValue(x => x.UnderCursor).Subscribe(x => delPinCommand.Enabled = DelPinCanExecute());
+
+        var cropCommand = new Command(CropExecute) { MenuText = "Crop" };
+        this.WhenAnyValue(x => x.UnderCursor).Subscribe(x => cropCommand.Enabled = CropCanExecute());
         
         boardChanges.Connect().DisposeWith(_disposables);
 
-        ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, delPinCommand);
-
-        Cursor = _cursor.DistinctUntilChanged();
+        ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, delPinCommand, cropCommand);
     }
 
     public ContextMenu ContextMenu { get; }
-
     public IObservable<bool> Invalidated => _invalidated.AsObservable();
-
     public IObservable<Cursor> Cursor { get; }
-
     public IObservable<PointF> ShowContextMenu => _showContextMenu.AsObservable();
+    public IObservable<IEditMode> NewEditMode => _newEditMode.AsObservable();
 
     [Reactive]
     private Pin? UnderCursor { get; set; }
@@ -122,7 +107,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             MoveUnderCursor(e.Location);
         else
             FindUnderCursor(e.Location);
-        UpdateCursor();
+        _cursor.OnNext(Utils.HitZoneToCursor(_hitZone));
     }
 
     public void OnPaint(PaintEventArgs e)
@@ -137,7 +122,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     {
         foreach (var pin in _board.Pins.Items.Reverse())
         {
-            var hitZone = HitTest(pin, location);
+            var hitZone = Utils.HitTest(_viewModel.BoardToView(pin.Bounds), location, _settings.DragMargin);
             if (hitZone != HitZone.Outside)
             {
                 UnderCursor = pin;
@@ -148,54 +133,6 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
         UnderCursor = null;
         _hitZone = HitZone.Outside;
-    }
-
-    private HitZone HitTest(Pin pin, PointF location)
-    {
-        var r = _viewModel.BoardToView(pin.Bounds);
-        var dragMargin = _settings.DragMargin;
-
-        var all = r;
-        all.Inflate(dragMargin, dragMargin);
-        if (!all.Contains(location))
-            return HitZone.Outside;
-
-        var left = Math.Abs(location.X - r.Left) <= dragMargin;
-        var top = Math.Abs(location.Y - r.Top) <= dragMargin;
-        var right = Math.Abs(location.X - r.Right) <= dragMargin;
-        var bottom = Math.Abs(location.Y - r.Bottom) <= dragMargin;
-
-        return (left, top, right, bottom) switch
-        {
-            (true, true, _, _) => HitZone.TopLeft,
-            (_, true, true, _) => HitZone.TopRight,
-            (_, _, true, true) => HitZone.BottomRight,
-            (true, _, _, true) => HitZone.BottomLeft,
-            (true, _, _, _) => HitZone.Left,
-            (_, true, _, _) => HitZone.Top,
-            (_, _, true, _) => HitZone.Right,
-            (_, _, _, true) => HitZone.Bottom,
-            _ => HitZone.Center
-        };
-    }
-
-    private void UpdateCursor()
-    {
-        var cursor = _hitZone switch
-        {
-            HitZone.Center => Cursors.Move,
-            HitZone.Left => Cursors.SizeLeft,
-            HitZone.TopLeft => Cursors.SizeTopLeft,
-            HitZone.Top => Cursors.SizeTop,
-            HitZone.TopRight => Cursors.SizeTopRight,
-            HitZone.Right => Cursors.SizeRight,
-            HitZone.BottomRight => Cursors.SizeBottomRight,
-            HitZone.Bottom => Cursors.SizeBottom,
-            HitZone.BottomLeft => Cursors.SizeBottomLeft,
-            _ => Cursors.Default
-        };
-
-        _cursor.OnNext(cursor);
     }
 
     private void MoveUnderCursor(PointF location)
@@ -305,5 +242,47 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             var path = GraphicsPath.GetRoundRect(r, 3);
             g.DrawPath(new Pen(_settings.BackgroundColor, 2), path);
         }
+    }
+
+    private bool PullForwardCanExecute()
+    {
+        return UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor) < _board.Pins.Count - 1;
+    }
+
+    private void PullForwardExecute(object? sender, EventArgs e)
+    {
+        var i = _board.Pins.Items.IndexOf(UnderCursor);
+        _board.Pins.Move(i, i + 1);
+    }
+
+    private bool PushBackCanExecute()
+    {
+        return UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor) > 0;
+    }
+
+    private void PushBackExecute(object? sender, EventArgs e)
+    {
+        var i = _board.Pins.Items.IndexOf(UnderCursor);
+        _board.Pins.Move(i, i - 1);
+    }
+
+    private bool DelPinCanExecute()
+    {
+        return UnderCursor != null;
+    }
+
+    private void DelPinExecute(object? sender, EventArgs e)
+    {
+        _board.Pins.Remove(UnderCursor);
+    }
+
+    private bool CropCanExecute()
+    {
+        return UnderCursor != null;
+    }
+
+    private void CropExecute(object? sender, EventArgs e)
+    {
+        _newEditMode.OnNext(new CropEditMode(_viewModel, UnderCursor, _settings, this));
     }
 }

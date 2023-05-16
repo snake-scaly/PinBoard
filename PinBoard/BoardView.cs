@@ -42,6 +42,8 @@ public class BoardView : Panel, INotifyPropertyChanged
         this.WhenAnyObservable(x => x.EditMode.Invalidated).Subscribe(_ => Invalidate()).DisposeWith(_disposables);
         this.WhenAnyObservable(x => x.EditMode.Cursor).Subscribe(x => Cursor = x).DisposeWith(_disposables);
         this.WhenAnyObservable(x => x.EditMode.ShowContextMenu).Subscribe(x => ContextMenu.Show(PointToScreen(x))).DisposeWith(_disposables);
+        this.WhenAnyObservable(x => x.EditMode.NewEditMode).Subscribe(x => EditMode = x).DisposeWith(_disposables);
+        this.WhenAnyValue(x => x.EditMode).Subscribe(_ => Invalidate()).DisposeWith(_disposables);
     }
 
     public PanZoomModel ViewModel { get; } = new();
@@ -54,9 +56,11 @@ public class BoardView : Panel, INotifyPropertyChanged
 
     public void Add(Image image)
     {
-        // Scale to 1/4 of the view and position at random fully visible.
-        var scaleX = Width / (image.Width * 4f);
-        var scaleY = Height / (image.Height * 4f);
+        // Scale to 1/2 of the view and position at random fully visible.
+        const float initialSize = .5f;
+
+        var scaleX = Width * initialSize / image.Width;
+        var scaleY = Height * initialSize / image.Height;
         var scale = Math.Min(scaleX, scaleY);
         var w = image.Width * scale;
         var h = image.Height * scale;

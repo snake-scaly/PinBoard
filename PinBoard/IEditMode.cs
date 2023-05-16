@@ -13,6 +13,8 @@ public interface IEditMode : IDisposable
     
     IObservable<PointF> ShowContextMenu { get; }
 
+    IObservable<IEditMode> NewEditMode { get; }
+
     void OnMouseDown(MouseEventArgs e);
 
     void OnMouseUp(MouseEventArgs e);

@@ -16,7 +16,9 @@ public class PanZoomModel : ReactiveObject
 
     public PointF BoardToView(PointF boardLocation) => (boardLocation - Origin) * Scale;
 
-    public RectangleF BoardToView(RectangleF boardRect) => new RectangleF(BoardToView(boardRect.TopLeft), BoardToView(boardRect.BottomRight));
+    public SizeF BoardToView(SizeF boardSize) => boardSize * Scale;
+
+    public RectangleF BoardToView(RectangleF boardRect) => new(BoardToView(boardRect.TopLeft), BoardToView(boardRect.Size));
 
     /// <summary>
     /// Pan the view such that a point in board coordinates appears at a given point in view coordinates.
