@@ -7,12 +7,13 @@ namespace PinBoard;
 public class MainWindow : Form
 {
     private Settings _settings = new();
-    private readonly BoardView _board;
+    private readonly BoardView _boardView;
 
     public MainWindow()
     {
         ClientSize = new Size(800, 600);
-        _board = new BoardView(_settings);
+        var board = new Board();
+        _boardView = new BoardView(board, _settings);
         var scaleLabel = new Label { Text = "100%",  };
         var scalePanel = new Panel { Content = scaleLabel, Padding = new Padding(6, 4) };
         var toolbar = new TableLayout(
@@ -21,8 +22,8 @@ public class MainWindow : Form
                 new TableCell(scalePanel)));
 
         Content = new TableLayout(
-            new TableRow { Cells = { new TableCell(_board) }, ScaleHeight = true },
-            new TableRow { Cells = { new TableCell(toolbar) }, ScaleHeight = false });
+            new TableRow(new TableCell(_boardView, true)) { ScaleHeight = true },
+            new TableRow(new TableCell(toolbar)));
 
         var pinFileCommand = new Command(OnPinFile)
         {
@@ -34,7 +35,7 @@ public class MainWindow : Form
 
         Menu = new MenuBar(boardSubMenu);
 
-        _board.WhenAnyValue(x => x.ViewModel.Scale).Subscribe(x => scaleLabel.Text = x.ToString("P1"));
+        _boardView.WhenAnyValue(x => x.ViewModel.Scale).Subscribe(x => scaleLabel.Text = x.ToString("P1"));
     }
 
     private void OnPinFile(object? sender, EventArgs e)
@@ -54,7 +55,7 @@ public class MainWindow : Form
         {
             try
             {
-                _board.Add(new Bitmap(filename));
+                _boardView.Add(new Bitmap(filename));
             }
             catch (Exception exception)
             {

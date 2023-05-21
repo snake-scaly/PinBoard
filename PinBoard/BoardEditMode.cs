@@ -1,3 +1,4 @@
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -19,7 +20,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     private bool _drag;
     private PointF _dragOffset;
 
-    private readonly Subject<bool> _invalidated = new();
+    private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<Cursor> _cursor = new();
     private readonly Subject<PointF> _showContextMenu = new();
     private readonly Subject<IEditMode> _newEditMode = new();
@@ -31,48 +32,36 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         _board = board;
         _viewModel = viewModel;
         _settings = settings;
-        
+
         Cursor = _cursor.DistinctUntilChanged();
 
-        this.WhenAnyValue(x => x.UnderCursor).Subscribe(_ => _invalidated.OnNext(true));
-        
-        var boardChanges = _board.Pins
-            .Connect()
-            .Publish();
-        var listChanges = boardChanges
-            .Where(x => x.Removes > 0 || x.Moves > 0)
-            .Select(_ => true);
-        boardChanges
-            .MergeMany(x => x.Update)
-            .Merge(listChanges)
-            .Subscribe(_ => _invalidated.OnNext(true))
-            .DisposeWith(_disposables);
-        boardChanges
-            .Connect()
-            .DisposeWith(_disposables);
-
-        var pinChanges = boardChanges.Select(_ => true);
-        var topologyChanges = this.WhenAnyValue(x => x.UnderCursor).Select(_ => true).Merge(pinChanges);
-
         var pullForwardCommand = new Command(PullForwardExecute) { MenuText = "Pull Forward" };
-        topologyChanges.Subscribe(_ => pullForwardCommand.Enabled = PullForwardCanExecute());
-
         var pushBackCommand = new Command(PushBackExecute) { MenuText = "Push Back" };
-        topologyChanges.Subscribe(_ => pushBackCommand.Enabled = PushBackCanExecute());
-
         var delPinCommand = new Command(DelPinExecute) { MenuText = "Remove" };
-        this.WhenAnyValue(x => x.UnderCursor).Subscribe(x => delPinCommand.Enabled = DelPinCanExecute());
-
         var cropCommand = new Command(CropExecute) { MenuText = "Crop" };
-        this.WhenAnyValue(x => x.UnderCursor).Subscribe(x => cropCommand.Enabled = CropCanExecute());
-        
-        boardChanges.Connect().DisposeWith(_disposables);
 
         ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, delPinCommand, cropCommand);
+
+        var pinListChangeSets = _board.Pins.Connect().Publish();
+        var pinChanges = pinListChangeSets.MergeMany(x => x.Changed.Select(_ => default(Unit))).Publish();
+
+        pinListChangeSets.Connect().DisposeWith(_disposables);
+        pinChanges.Connect().DisposeWith(_disposables);
+
+        var selectionChanges = this.WhenAnyValue(x => x.UnderCursor).Select(_ => default(Unit));
+        var listChanges = pinListChangeSets.Select(_ => default(Unit));
+        var orderChanges = listChanges.Merge(selectionChanges);
+        var anyChanges = orderChanges.Merge(pinChanges);
+
+        orderChanges.Subscribe(_ => pullForwardCommand.Enabled = PullForwardCanExecute());
+        orderChanges.Subscribe(_ => pushBackCommand.Enabled = PushBackCanExecute());
+        selectionChanges.Subscribe(_ => delPinCommand.Enabled = DelPinCanExecute());
+        selectionChanges.Subscribe(_ => cropCommand.Enabled = CropCanExecute());
+        anyChanges.Subscribe(_ => _invalidated.OnNext(default));
     }
 
     public ContextMenu ContextMenu { get; }
-    public IObservable<bool> Invalidated => _invalidated.AsObservable();
+    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
     public IObservable<Cursor> Cursor { get; }
     public IObservable<PointF> ShowContextMenu => _showContextMenu.AsObservable();
     public IObservable<IEditMode> NewEditMode => _newEditMode.AsObservable();

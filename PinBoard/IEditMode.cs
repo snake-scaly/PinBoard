@@ -1,3 +1,4 @@
+using System.Reactive;
 using Eto.Drawing;
 using Eto.Forms;
 
@@ -7,7 +8,7 @@ public interface IEditMode : IDisposable
 {
     ContextMenu ContextMenu { get; }
 
-    IObservable<bool> Invalidated { get; }
+    IObservable<Unit> Invalidated { get; }
 
     IObservable<Cursor> Cursor { get; }
     

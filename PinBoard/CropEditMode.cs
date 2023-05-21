@@ -1,3 +1,4 @@
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -20,7 +21,7 @@ public sealed class CropEditMode : IEditMode
     private readonly RectangleF _imageRect;
     private RectangleF _cropRect;
 
-    private readonly Subject<bool> _invalidated = new();
+    private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<Cursor> _cursor = new();
     private readonly Subject<PointF> _showContextMenu = new();
     private readonly Subject<IEditMode> _newEditMode = new();
@@ -47,7 +48,7 @@ public sealed class CropEditMode : IEditMode
     }
 
     public ContextMenu ContextMenu { get; }
-    public IObservable<bool> Invalidated => _invalidated.AsObservable();
+    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
     public IObservable<Cursor> Cursor { get; }
     public IObservable<PointF> ShowContextMenu => _showContextMenu.AsObservable();
     public IObservable<IEditMode> NewEditMode => _newEditMode.AsObservable();
@@ -123,7 +124,7 @@ public sealed class CropEditMode : IEditMode
         if (_hitZone is HitZone.Bottom or HitZone.BottomLeft or HitZone.BottomRight)
             _cropRect.Bottom = Math.Clamp(boardLocation.Y, _cropRect.Top + minSize, _imageRect.Bottom);
 
-        _invalidated.OnNext(true);
+        _invalidated.OnNext(default);
     }
 
     private void DoneExecute(object? sender, EventArgs e)

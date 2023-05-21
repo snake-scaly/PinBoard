@@ -11,19 +11,20 @@ namespace PinBoard;
 
 public class BoardView : Panel, INotifyPropertyChanged
 {
-    private readonly CompositeDisposable _disposables = new();
-    private readonly Drawable _canvas;
     private readonly Board _board;
+    private readonly Drawable _canvas;
+    private readonly CompositeDisposable _disposables = new();
+
     private IEditMode _editMode;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public BoardView(Settings settings)
+    public BoardView(Board board, Settings settings)
     {
+        _board = board;
         _canvas = new Drawable().DisposeWith(_disposables);
         new PanZoomController(ViewModel, this).DisposeWith(_disposables);
 
-        _board = new Board();
         Content = _canvas;
 
         ViewModel
