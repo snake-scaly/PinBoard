@@ -12,14 +12,6 @@ public class PanZoomModel : ReactiveObject
     [Reactive]
     public float Scale { get; set; } = 1.0f;
 
-    public PointF ViewToBoard(PointF viewLocation) => viewLocation / Scale + Origin;
-
-    public PointF BoardToView(PointF boardLocation) => (boardLocation - Origin) * Scale;
-
-    public SizeF BoardToView(SizeF boardSize) => boardSize * Scale;
-
-    public RectangleF BoardToView(RectangleF boardRect) => new(BoardToView(boardRect.TopLeft), BoardToView(boardRect.Size));
-
     /// <summary>
     /// Pan the view such that a point in board coordinates appears at a given point in view coordinates.
     /// </summary>
@@ -30,8 +22,21 @@ public class PanZoomModel : ReactiveObject
     /// </summary>
     public void Zoom(PointF viewLocation, float newScale)
     {
-        var boardLocation = ViewToBoard(viewLocation);
+        var boardLocation = ViewBoardTransform.TransformPoint(viewLocation);
         Scale = newScale;
         Pan(boardLocation, viewLocation);
     }
+
+    public IMatrix BoardViewTransform
+    {
+        get
+        {
+            var m = Matrix.Create();
+            m.Scale(Scale);
+            m.Translate(-Origin);
+            return m;
+        }
+    }
+
+    public IMatrix ViewBoardTransform => BoardViewTransform.Inverse();
 }

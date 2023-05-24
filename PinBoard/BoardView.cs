@@ -67,7 +67,7 @@ public class BoardView : Panel, INotifyPropertyChanged
         var h = image.Height * scale;
         var x = Random.Shared.NextSingle() * (Width - w) + w / 2;
         var y = Random.Shared.NextSingle() * (Height - h) + h / 2;
-        _board.Pins.Add(new Pin { Image = new CroppedImage(image), Center = new PointF(x, y), Scale = scale });
+        _board.Pins.Add(new Pin { Image = new PinImage(image, false), Center = new PointF(x, y), Scale = scale });
     }
     
     protected override void Dispose(bool disposing)

@@ -63,7 +63,7 @@ public sealed class CropEditMode : IEditMode
         if (e.Buttons == MouseButtons.Primary && _hitZone != HitZone.Outside)
         {
             _drag = true;
-            _dragOffset = _cropRect.Location - _viewModel.ViewToBoard(e.Location);
+            _dragOffset = _cropRect.Location - _viewModel.ViewBoardTransform.TransformPoint(e.Location);
         }
     }
 
@@ -80,7 +80,7 @@ public sealed class CropEditMode : IEditMode
             MoveUnderCursor(e.Location);
         else
 
-            _hitZone = Utils.HitTest(_viewModel.BoardToView(_cropRect), e.Location, _settings.DragMargin);
+            _hitZone = Utils.HitTest(_viewModel.BoardViewTransform.TransformRectangle(_cropRect), e.Location, _settings.DragMargin);
         _cursor.OnNext(Utils.HitZoneToCursor(_hitZone));
     }
 
@@ -89,12 +89,12 @@ public sealed class CropEditMode : IEditMode
         e.Graphics.ImageInterpolation = ImageInterpolation.Low;
         e.Graphics.Clear(_settings.BackgroundColor);
 
-        e.Graphics.DrawImage(_pin.Image.Source, _viewModel.BoardToView(_imageRect));
+        e.Graphics.DrawImage(_pin.Image.Source, _viewModel.BoardViewTransform.TransformRectangle(_imageRect));
 
         e.Graphics.FillRectangle(new Color(1, 1, 1, .5f), e.ClipRectangle);
 
         var sourceRect = (_cropRect - _imageRect.TopLeft) / _pin.Scale;
-        var viewRect = _viewModel.BoardToView(_cropRect);
+        var viewRect = _viewModel.BoardViewTransform.TransformRectangle(_cropRect);
 
         e.Graphics.DrawImage(_pin.Image.Source, sourceRect, viewRect);
 
@@ -105,7 +105,7 @@ public sealed class CropEditMode : IEditMode
 
     private void MoveUnderCursor(PointF location)
     {
-        var boardLocation = _viewModel.ViewToBoard(location);
+        var boardLocation = _viewModel.ViewBoardTransform.TransformPoint(location);
         var minSize = _settings.DragMargin * 2;
 
         if (_hitZone is HitZone.Center)

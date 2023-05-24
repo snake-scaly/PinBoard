@@ -79,7 +79,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         if (e.Buttons == MouseButtons.Primary && UnderCursor != null)
         {
             _drag = true;
-            _dragOffset = UnderCursor.Center - _viewModel.ViewToBoard(e.Location);
+            _dragOffset = _viewModel.BoardViewTransform.TransformPoint(UnderCursor.Center) - e.Location;
         }
     }
 
@@ -109,9 +109,16 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void FindUnderCursor(PointF location)
     {
+        var viewTransform = _viewModel.BoardViewTransform;
         foreach (var pin in _board.Pins.Items.Reverse())
         {
-            var hitZone = Utils.HitTest(_viewModel.BoardToView(pin.Bounds), location, _settings.DragMargin);
+            var r = pin.GetBounds(viewTransform);
+            HitZone hitZone;
+            if (pin.CanResize)
+                hitZone = Utils.HitTest(r, location, _settings.DragMargin);
+            else
+                hitZone = r.Contains(location) ? HitZone.Center : HitZone.Outside;
+
             if (hitZone != HitZone.Outside)
             {
                 UnderCursor = pin;
@@ -126,98 +133,49 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void MoveUnderCursor(PointF location)
     {
-        var boardLocation = _viewModel.ViewToBoard(location);
-        var r = UnderCursor!.Bounds;
+        var viewRect = UnderCursor!.GetBounds(_viewModel.BoardViewTransform);
 
-        switch (_hitZone)
-        {
-            case HitZone.Center:
-                UnderCursor.Center = boardLocation + _dragOffset;
-                break;
+        if (_hitZone is HitZone.Center)
+            viewRect.Center = location + _dragOffset;
+        if (_hitZone is HitZone.Left or HitZone.TopLeft or HitZone.BottomLeft)
+            viewRect.Left = location.X;
+        if (_hitZone is HitZone.Top or HitZone.TopLeft or HitZone.TopRight)
+            viewRect.Top = location.Y;
+        if (_hitZone is HitZone.Right or HitZone.TopRight or HitZone.BottomRight)
+            viewRect.Right = location.X;
+        if (_hitZone is HitZone.Bottom or HitZone.BottomLeft or HitZone.BottomRight)
+            viewRect.Bottom = location.Y;
 
-            case HitZone.Left:
-                r.Left = boardLocation.X;
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = r.Width / UnderCursor.Image.Width;
-                break;
+        if (_hitZone is HitZone.TopLeft)
+            viewRect.TopLeft = FixProportions(viewRect.TopLeft, viewRect.BottomRight, UnderCursor.OriginalSize);
+        if (_hitZone is HitZone.TopRight)
+            viewRect.TopRight = FixProportions(viewRect.TopRight, viewRect.BottomLeft, UnderCursor.OriginalSize);
+        if (_hitZone is HitZone.BottomRight)
+            viewRect.BottomRight = FixProportions(viewRect.BottomRight, viewRect.TopLeft, UnderCursor.OriginalSize);
+        if (_hitZone is HitZone.BottomLeft)
+            viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, UnderCursor.OriginalSize);
 
-            case HitZone.Top:
-                r.Top = boardLocation.Y;
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = r.Height / UnderCursor.Image.Height;
-                break;
+        UnderCursor.Center = _viewModel.ViewBoardTransform.TransformPoint(viewRect.Center);
 
-            case HitZone.Right:
-                r.Right = boardLocation.X;
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = r.Width / UnderCursor.Image.Width;
-                break;
+        if (_hitZone is HitZone.Top or HitZone.Bottom)
+            UnderCursor.Scale = viewRect.Height / UnderCursor.OriginalSize.Height;
+        else
+            UnderCursor.Scale = viewRect.Width / UnderCursor.OriginalSize.Width;
+    }
 
-            case HitZone.Bottom:
-                r.Bottom = boardLocation.Y;
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = r.Height / UnderCursor.Image.Height;
-                break;
-
-            case HitZone.TopLeft:
-            {
-                var scaleX = (r.Right - boardLocation.X) / UnderCursor.Image.Width;
-                var scaleY = (r.Bottom - boardLocation.Y) / UnderCursor.Image.Height;
-                var scale = Math.Max(scaleX, scaleY);
-
-                r.TopLeft = r.BottomRight - UnderCursor.Image.Size * scale;
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = scale;
-
-                break;
-            }
-
-            case HitZone.TopRight:
-            {
-                var scaleX = (boardLocation.X - r.Left) / UnderCursor.Image.Width;
-                var scaleY = (r.Bottom - boardLocation.Y) / UnderCursor.Image.Height;
-                var scale = Math.Max(scaleX, scaleY);
-
-                r.TopRight = new PointF(r.Left + UnderCursor.Image.Width * scale, r.Bottom - UnderCursor.Image.Height * scale);
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = scale;
-
-                break;
-            }
-
-            case HitZone.BottomRight:
-            {
-                var scaleX = (boardLocation.X - r.Left) / UnderCursor.Image.Width;
-                var scaleY = (boardLocation.Y - r.Top) / UnderCursor.Image.Height;
-                var scale = Math.Max(scaleX, scaleY);
-
-                r.BottomRight = r.TopLeft + UnderCursor.Image.Size * scale;
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = scale;
-
-                break;
-            }
-
-            case HitZone.BottomLeft:
-            {
-                var scaleX = (r.Right - boardLocation.X) / UnderCursor.Image.Width;
-                var scaleY = (boardLocation.Y - r.Top) / UnderCursor.Image.Height;
-                var scale = Math.Max(scaleX, scaleY);
-
-                r.BottomLeft = new PointF(r.Right - UnderCursor.Image.Width * scale, r.Top + UnderCursor.Image.Height * scale);
-                UnderCursor.Center = r.Center;
-                UnderCursor.Scale = scale;
-
-                break;
-            }
-        }
+    private static PointF FixProportions(PointF guess, PointF anchor, SizeF original)
+    {
+        var diff = guess - anchor;
+        var scale = Math.Max(Math.Abs(diff.X) / original.Width, Math.Abs(diff.Y) / original.Height);
+        return anchor + new SizeF(original.Width * scale * Math.Sign(diff.X), original.Height * scale * Math.Sign(diff.Y));
     }
 
     private void DrawPin(Pin pin, Graphics g)
     {
-        var r = _viewModel.BoardToView(pin.Bounds);
-        g.DrawImage(pin.Image.Source, pin.Image.SourceRect, r);
+        var boardViewTransform = _viewModel.BoardViewTransform;
+        pin.Render(g, boardViewTransform);
 
+        RectangleF r = pin.GetBounds(boardViewTransform);
         if (pin == UnderCursor)
         {
             r.BottomRight -= 1;
@@ -267,7 +225,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private bool CropCanExecute()
     {
-        return UnderCursor != null;
+        return UnderCursor is { CanCrop: true };
     }
 
     private void CropExecute(object? sender, EventArgs e)

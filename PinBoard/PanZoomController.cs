@@ -51,7 +51,7 @@ public sealed class PanZoomController : IDisposable
         if (e.Buttons == MouseButtons.Middle)
         {
             e.Handled = true;
-            _panOffset = _model.ViewToBoard(e.Location);
+            _panOffset = _model.ViewBoardTransform.TransformPoint(e.Location);
             _pan = true;
         }
     }
