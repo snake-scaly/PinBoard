@@ -28,7 +28,7 @@ public class BoardView : Panel, INotifyPropertyChanged
         Content = _canvas;
 
         ViewModel
-            .WhenAnyValue(x => x.Origin, x => x.Scale)
+            .WhenAnyValue(x => x.BoardViewTransform)
             .Subscribe(_ => Invalidate())
             .DisposeWith(_disposables);
 

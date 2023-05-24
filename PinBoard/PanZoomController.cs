@@ -1,6 +1,5 @@
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using DynamicData;
 using Eto.Drawing;
 using Eto.Forms;
 
@@ -81,26 +80,27 @@ public sealed class PanZoomController : IDisposable
 
         e.Handled = true;
 
-        var scaleIndex = _scaleGrid.BinarySearch(_model.Scale);
+        var (below, above) = FindClosest(_model.Scale);
 
         if (e.Delta.Height > 0)
-        {
-            if (scaleIndex >= _scaleGrid.Length)
-                return;
-            if (_model.Scale == _scaleGrid[scaleIndex])
-            {
-                if (scaleIndex == _scaleGrid.Length - 1)
-                    return;
-                scaleIndex++;
-            }
-        }
+            _model.Zoom(e.Location, above);
         else if (e.Delta.Height < 0)
+            _model.Zoom(e.Location, below);
+    }
+
+    private static (float below, float above) FindClosest(float s)
+    {
+        var below = _scaleGrid[0];
+
+        foreach (var g in _scaleGrid.Skip(1))
         {
-            if (scaleIndex == 0)
-                return;
-            scaleIndex--;
+            if (Math.Abs(s - g) <= s / 100)
+                continue; // same scale, ignore
+            if (g > s)
+                return (below, g);
+            below = g;
         }
 
-        _model.Zoom(e.Location, _scaleGrid[scaleIndex]);
+        return (below, _scaleGrid.Last());
     }
 }

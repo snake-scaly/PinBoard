@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using Eto.Drawing;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -6,16 +7,39 @@ namespace PinBoard;
 
 public class PanZoomModel : ReactiveObject
 {
-    [Reactive]
-    public PointF Origin { get; set; }
+    private IMatrix _matrix = Matrix.Create();
+
+    public PanZoomModel()
+    {
+        BoardViewTransform = _matrix.Clone();
+
+        this.WhenAnyValue(x => x.BoardViewTransform)
+            .Select(x => x.Xx)
+            .ToPropertyEx(this, x => x.Scale);
+
+        this.WhenAnyValue(x => x.BoardViewTransform)
+            .Select(x => x.Inverse())
+            .ToPropertyEx(this, x => x.ViewBoardTransform);
+    }
 
     [Reactive]
-    public float Scale { get; set; } = 1.0f;
+    public IMatrix BoardViewTransform { get; private set; }
+
+    [ObservableAsProperty]
+    public IMatrix ViewBoardTransform { get; }
+
+    [ObservableAsProperty]
+    public float Scale { get; }
 
     /// <summary>
     /// Pan the view such that a point in board coordinates appears at a given point in view coordinates.
     /// </summary>
-    public void Pan(PointF boardLocation, PointF viewLocation) => Origin = boardLocation - viewLocation / Scale;
+    public void Pan(PointF boardLocation, PointF viewLocation)
+    {
+        var newBoardLocation = ViewBoardTransform.TransformPoint(viewLocation);
+        _matrix.Translate(newBoardLocation - boardLocation);
+        BoardViewTransform = _matrix.Clone();
+    }
 
     /// <summary>
     /// Zoom the view such that the given point in view coordinates stays at the same board coordinates.
@@ -23,20 +47,7 @@ public class PanZoomModel : ReactiveObject
     public void Zoom(PointF viewLocation, float newScale)
     {
         var boardLocation = ViewBoardTransform.TransformPoint(viewLocation);
-        Scale = newScale;
-        Pan(boardLocation, viewLocation);
+        _matrix.ScaleAt(newScale / Scale, boardLocation);
+        BoardViewTransform = _matrix.Clone();
     }
-
-    public IMatrix BoardViewTransform
-    {
-        get
-        {
-            var m = Matrix.Create();
-            m.Scale(Scale);
-            m.Translate(-Origin);
-            return m;
-        }
-    }
-
-    public IMatrix ViewBoardTransform => BoardViewTransform.Inverse();
 }

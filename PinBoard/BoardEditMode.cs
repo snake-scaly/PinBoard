@@ -156,11 +156,12 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, UnderCursor.OriginalSize);
 
         UnderCursor.Center = _viewModel.ViewBoardTransform.TransformPoint(viewRect.Center);
+        var boardSize = _viewModel.ViewBoardTransform.TransformSize(viewRect.Size);
 
         if (_hitZone is HitZone.Top or HitZone.Bottom)
-            UnderCursor.Scale = viewRect.Height / UnderCursor.OriginalSize.Height;
+            UnderCursor.Scale = boardSize.Height / UnderCursor.OriginalSize.Height;
         else
-            UnderCursor.Scale = viewRect.Width / UnderCursor.OriginalSize.Width;
+            UnderCursor.Scale = boardSize.Width / UnderCursor.OriginalSize.Width;
     }
 
     private static PointF FixProportions(PointF guess, PointF anchor, SizeF original)
