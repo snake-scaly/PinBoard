@@ -112,7 +112,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         var viewTransform = _viewModel.BoardViewTransform;
         foreach (var pin in _board.Pins.Items.Reverse())
         {
-            var r = pin.GetBounds(viewTransform);
+            var r = pin.GetViewBounds(viewTransform);
             HitZone hitZone;
             if (pin.CanResize)
                 hitZone = Utils.HitTest(r, location, _settings.DragMargin);
@@ -133,7 +133,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void MoveUnderCursor(PointF location)
     {
-        var viewRect = UnderCursor!.GetBounds(_viewModel.BoardViewTransform);
+        var viewRect = UnderCursor!.GetViewBounds(_viewModel.BoardViewTransform);
 
         if (_hitZone is HitZone.Center)
             viewRect.Center = location + _dragOffset;
@@ -176,7 +176,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         var boardViewTransform = _viewModel.BoardViewTransform;
         pin.Render(g, boardViewTransform);
 
-        RectangleF r = pin.GetBounds(boardViewTransform);
+        RectangleF r = pin.GetViewBounds(boardViewTransform);
         if (pin == UnderCursor)
         {
             r.BottomRight -= 1;

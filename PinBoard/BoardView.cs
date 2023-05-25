@@ -55,19 +55,21 @@ public class BoardView : Panel, INotifyPropertyChanged
         set => SetField(ref _editMode, value);
     }
 
-    public void Add(Image image)
+    public void Add(Uri url)
     {
         // Scale to 1/2 of the view and position at random fully visible.
         const float initialSize = .5f;
 
-        var scaleX = Width * initialSize / image.Width;
-        var scaleY = Height * initialSize / image.Height;
-        var scale = Math.Min(scaleX, scaleY);
-        var w = image.Width * scale;
-        var h = image.Height * scale;
-        var x = Random.Shared.NextSingle() * (Width - w) + w / 2;
-        var y = Random.Shared.NextSingle() * (Height - h) + h / 2;
-        _board.Pins.Add(new Pin { Image = new PinImage(image, false), Center = new PointF(x, y), Scale = scale });
+        // var scaleX = Width * initialSize / image.Width;
+        // var scaleY = Height * initialSize / image.Height;
+        // var scale = Math.Min(scaleX, scaleY);
+        // var w = image.Width * scale;
+        // var h = image.Height * scale;
+
+        var s = Math.Min(Width * initialSize, Height * initialSize);
+        var x = Random.Shared.NextSingle() * (Width - s) + s / 2;
+        var y = Random.Shared.NextSingle() * (Height - s) + s / 2;
+        _board.Pins.Add(new Pin(url, new PointF(x, y), s));
     }
     
     protected override void Dispose(bool disposing)

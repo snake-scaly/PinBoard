@@ -1,54 +1,47 @@
 using Eto.Drawing;
-using ReactiveUI;
-using ReactiveUI.Fody.Helpers;
 
 namespace PinBoard;
 
-public class PinImage : ReactiveObject
+public class PinImage : IPinImage
 {
-    public PinImage(Image source, bool isIcon)
+    private readonly Image _source;
+    private RectangleF _sourceRect;
+
+    public PinImage(Image source)
     {
-        Source = source;
-        IsIcon = isIcon;
-        SourceRect = new RectangleF(default, source.Size);
-        this.WhenAnyValue(x => x.SourceRect.Width).ToPropertyEx(this, x => x.Width);
-        this.WhenAnyValue(x => x.SourceRect.Height).ToPropertyEx(this, x => x.Height);
-        this.WhenAnyValue(x => x.SourceRect.Size).ToPropertyEx(this, x => x.Size);
+        _source = source;
+        _sourceRect = new RectangleF(default, source.Size);
     }
 
-    public Image Source { get; }
+    public bool IsIcon => false;
 
-    public bool IsIcon { get; }
+    public SizeF OriginalSize => _sourceRect.Size;
 
-    [Reactive]
-    public RectangleF SourceRect { get; set; }
-
-    [ObservableAsProperty]
-    public float Width { get; }
-
-    [ObservableAsProperty]
-    public float Height { get; }
-    
-    [ObservableAsProperty]
-    public SizeF Size { get; }
-
-    public RectangleF GetViewRect(IMatrix viewTransform)
+    public RectangleF GetViewRect(IMatrix viewTransform, bool crop)
     {
-        if (IsIcon)
-        {
-            return new RectangleF(Source.Size) { Center = viewTransform.TransformPoint(default) };
-        }
-
-        return viewTransform.TransformRectangle(CenterRect(SourceRect.Size));
+        if (crop)
+            return viewTransform.TransformRectangle(CenterRect(_sourceRect.Size, new PointF(_sourceRect.Size / 2)));
+        return viewTransform.TransformRectangle(CenterRect(_source.Size, _sourceRect.Center));
     }
 
-    public void Render(Graphics g, IMatrix imageViewTransform)
+    public void Render(Graphics g, IMatrix viewTransform, bool crop)
     {
-        if (IsIcon)
-            g.DrawImage(Source, imageViewTransform.TransformPoint(default) - Source.Size / 2);
+        if (crop)
+            g.DrawImage(_source, _sourceRect, GetViewRect(viewTransform, true));
         else
-            g.DrawImage(Source, SourceRect, imageViewTransform.TransformRectangle(CenterRect(SourceRect.Size)));
+            g.DrawImage(_source, GetViewRect(viewTransform, false));
     }
 
-    private static RectangleF CenterRect(SizeF size) => new(-size.Width / 2, -size.Height / 2, size.Width, size.Height);
+    public void Crop(RectangleF pinRect)
+    {
+        pinRect.Offset(_sourceRect.Center);
+        _sourceRect = pinRect;
+    }
+
+    private static RectangleF CenterRect(SizeF size, PointF center)
+    {
+        var r = new RectangleF(size);
+        r.Offset(-center);
+        return r;
+    }
 }

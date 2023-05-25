@@ -16,4 +16,15 @@
       <PackageReference Include="ReactiveUI.Fody" Version="18.4.1" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Remove="Resources\file-error-icon.png" />
+      <EmbeddedResource Include="Resources\file-error-icon.png" />
+      <None Remove="Resources\file-icon.png" />
+      <EmbeddedResource Include="Resources\file-icon.png" />
+      <None Remove="Resources\url-error-icon.png" />
+      <EmbeddedResource Include="Resources\url-error-icon.png" />
+      <None Remove="Resources\url-icon.png" />
+      <EmbeddedResource Include="Resources\url-icon.png" />
+    </ItemGroup>
+
 </Project>

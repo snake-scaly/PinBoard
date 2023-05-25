@@ -14,6 +14,9 @@ public class MainWindow : Form
         ClientSize = new Size(800, 600);
         var board = new Board();
         _boardView = new BoardView(board, _settings);
+
+        var mainView = _boardView;
+
         var scaleLabel = new Label { Text = "100%",  };
         var scalePanel = new Panel { Content = scaleLabel, Padding = new Padding(6, 4) };
         var toolbar = new TableLayout(
@@ -22,7 +25,7 @@ public class MainWindow : Form
                 new TableCell(scalePanel)));
 
         Content = new TableLayout(
-            new TableRow(new TableCell(_boardView, true)) { ScaleHeight = true },
+            new TableRow(new TableCell(mainView)) { ScaleHeight = true },
             new TableRow(new TableCell(toolbar)));
 
         var pinFileCommand = new Command(OnPinFile)
@@ -55,7 +58,7 @@ public class MainWindow : Form
         {
             try
             {
-                _boardView.Add(new Bitmap(filename));
+                _boardView.Add(new Uri(filename));
             }
             catch (Exception exception)
             {

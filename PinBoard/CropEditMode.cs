@@ -35,10 +35,8 @@ public sealed class CropEditMode : IEditMode
         _settings = settings;
         _previousMode = previousMode;
 
-        _imageRect = new RectangleF(
-            _pin.Center - (_pin.Image.SourceRect.TopLeft + _pin.Image.SourceRect.Size / 2) * _pin.Scale,
-            _pin.Image.Source.Size * _pin.Scale);
-        _cropRect = _pin.Bounds;
+        _imageRect = _pin.GetViewBounds(Matrix.Create(), false);
+        _cropRect = _pin.GetViewBounds(Matrix.Create(), true);
 
         Cursor = _cursor.DistinctUntilChanged();
 
@@ -79,7 +77,6 @@ public sealed class CropEditMode : IEditMode
         if (_drag)
             MoveUnderCursor(e.Location);
         else
-
             _hitZone = Utils.HitTest(_viewModel.BoardViewTransform.TransformRectangle(_cropRect), e.Location, _settings.DragMargin);
         _cursor.OnNext(Utils.HitZoneToCursor(_hitZone));
     }
@@ -89,24 +86,42 @@ public sealed class CropEditMode : IEditMode
         e.Graphics.ImageInterpolation = ImageInterpolation.Low;
         e.Graphics.Clear(_settings.BackgroundColor);
 
-        e.Graphics.DrawImage(_pin.Image.Source, _viewModel.BoardViewTransform.TransformRectangle(_imageRect));
+        var viewCropRect = _viewModel.BoardViewTransform.TransformRectangle(_cropRect);
 
-        e.Graphics.FillRectangle(new Color(1, 1, 1, .5f), e.ClipRectangle);
+        _pin.Render(e.Graphics, _viewModel.BoardViewTransform, false);
+        foreach (var r in Cutout(e.ClipRectangle, viewCropRect))
+            e.Graphics.FillRectangle(new Color(1, 1, 1, .5f), r);
 
-        var sourceRect = (_cropRect - _imageRect.TopLeft) / _pin.Scale;
-        var viewRect = _viewModel.BoardViewTransform.TransformRectangle(_cropRect);
-
-        e.Graphics.DrawImage(_pin.Image.Source, sourceRect, viewRect);
-
-        var path = GraphicsPath.GetRoundRect(viewRect, 3);
+        var path = GraphicsPath.GetRoundRect(viewCropRect, 3);
         e.Graphics.DrawPath(new Pen(_settings.BackgroundColor, 4), path);
         e.Graphics.DrawPath(new Pen(Colors.White, 2), path);
     }
 
+    private static IEnumerable<RectangleF> Cutout(RectangleF rect, RectangleF hole)
+    {
+        hole.Restrict(rect);
+        hole = new RectangleF((float)Math.Round(hole.X), (float)Math.Round(hole.Y), (float)Math.Round(hole.Width), (float)Math.Round(hole.Height));
+
+        if (hole.IsEmpty)
+        {
+            yield return rect;
+            yield break;
+        }
+
+        if (hole.Top > rect.Top)
+            yield return new RectangleF(rect.Left, rect.Top, rect.Width, hole.Top - rect.Top);
+        if (hole.Bottom < rect.Bottom)
+            yield return new RectangleF(rect.Left, hole.Bottom, rect.Width, rect.Bottom - hole.Bottom);
+        if (hole.Left > rect.Left)
+            yield return new RectangleF(rect.Left, hole.Top, hole.Left - rect.Left, hole.Height);
+        if (hole.Right < rect.Right)
+            yield return new RectangleF(hole.Right, hole.Top, rect.Right - hole.Right, hole.Height);
+    }
+
     private void MoveUnderCursor(PointF location)
     {
-        var boardLocation = _viewModel.ViewBoardTransform.TransformPoint(location);
         var minSize = _settings.DragMargin * 2;
+        var boardLocation = _viewModel.ViewBoardTransform.TransformPoint(location);
 
         if (_hitZone is HitZone.Center)
         {
@@ -115,6 +130,7 @@ public sealed class CropEditMode : IEditMode
                     Math.Clamp(boardLocation.X + _dragOffset.X, _imageRect.Left, _imageRect.Right - _cropRect.Width),
                     Math.Clamp(boardLocation.Y + _dragOffset.Y, _imageRect.Top, _imageRect.Bottom - _cropRect.Height));
         }
+
         if (_hitZone is HitZone.Left or HitZone.TopLeft or HitZone.BottomLeft)
             _cropRect.Left = Math.Clamp(boardLocation.X, _imageRect.Left, _cropRect.Right - minSize);
         if (_hitZone is HitZone.Top or HitZone.TopLeft or HitZone.TopRight)
@@ -129,8 +145,7 @@ public sealed class CropEditMode : IEditMode
 
     private void DoneExecute(object? sender, EventArgs e)
     {
-        _pin.Image.SourceRect = (_cropRect - _imageRect.TopLeft) / _pin.Scale;
-        _pin.Center = _cropRect.Center;
+        _pin.Crop(_cropRect);
         _newEditMode.OnNext(_previousMode);
     }
 
