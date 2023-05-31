@@ -23,9 +23,6 @@ public class BoardView : Panel, INotifyPropertyChanged
     {
         _board = board;
         _canvas = new Drawable().DisposeWith(_disposables);
-        new PanZoomController(ViewModel, this).DisposeWith(_disposables);
-
-        Content = _canvas;
 
         ViewModel
             .WhenAnyValue(x => x.BoardViewTransform)
@@ -47,6 +44,14 @@ public class BoardView : Panel, INotifyPropertyChanged
         this.WhenAnyValue(x => x.EditMode).Subscribe(_ => Invalidate()).DisposeWith(_disposables);
     }
 
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        Content = _canvas;
+        AllowDrop = true;
+        new PanZoomController(ViewModel, this).DisposeWith(_disposables);
+    }
+
     public PanZoomModel ViewModel { get; } = new();
 
     private IEditMode EditMode
@@ -57,19 +62,13 @@ public class BoardView : Panel, INotifyPropertyChanged
 
     public void Add(Uri url)
     {
-        // Scale to 1/2 of the view and position at random fully visible.
-        const float initialSize = .5f;
+        var screenSize = Math.Min(Width / 2f, Height / 2f);
+        var x = Random.Shared.NextSingle() * (Width - screenSize) + screenSize / 2;
+        var y = Random.Shared.NextSingle() * (Height - screenSize) + screenSize / 2;
+        var boardLocation = ViewModel.ViewBoardTransform.TransformPoint(new PointF(x, y));
+        var boardSize = ViewModel.ViewBoardTransform.TransformSize(new SizeF(screenSize, 0)).Width;
 
-        // var scaleX = Width * initialSize / image.Width;
-        // var scaleY = Height * initialSize / image.Height;
-        // var scale = Math.Min(scaleX, scaleY);
-        // var w = image.Width * scale;
-        // var h = image.Height * scale;
-
-        var s = Math.Min(Width * initialSize, Height * initialSize);
-        var x = Random.Shared.NextSingle() * (Width - s) + s / 2;
-        var y = Random.Shared.NextSingle() * (Height - s) + s / 2;
-        _board.Pins.Add(new Pin(url, new PointF(x, y), s));
+        _board.Pins.Add(new Pin(url, boardLocation, boardSize));
     }
     
     protected override void Dispose(bool disposing)
@@ -101,6 +100,38 @@ public class BoardView : Panel, INotifyPropertyChanged
         if (e.Handled)
             return;
         EditMode.OnMouseMove(e);
+    }
+
+    protected override void OnDragEnter(DragEventArgs e)
+    {
+        base.OnDragEnter(e);
+        e.Effects = e.AllowedEffects & DragEffects.Copy | DragEffects.Link;
+    }
+
+    protected override void OnDragDrop(DragEventArgs e)
+    {
+        base.OnDragDrop(e);
+
+        var boardLocation = ViewModel.ViewBoardTransform.TransformPoint(e.Location);
+        var boardSize = ViewModel.ViewBoardTransform.TransformSize(new SizeF(Width / 2f, Height / 2f));
+
+        if (e.Data.ContainsImage)
+        {
+            var boardScale = boardSize / e.Data.Image.Size;
+            _board.Pins.Add(new Pin(e.Data.Image, boardLocation, Math.Min(boardScale.Width, boardScale.Height)));
+        }
+        else if (e.Data.ContainsUris)
+        {
+            if (e.Data.Uris.Length == 1)
+                _board.Pins.Add(new Pin(e.Data.Uris[0], boardLocation, Math.Min(boardSize.Width, boardSize.Height)));
+            else
+                foreach (var uri in e.Data.Uris)
+                    Add(uri);
+        }
+        else if (e.Data.ContainsText)
+        {
+            _board.Pins.Add(new Pin(new Uri(e.Data.Text), boardLocation, Math.Min(boardSize.Width, boardSize.Height)));
+        }
     }
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)

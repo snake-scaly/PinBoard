@@ -221,7 +221,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void DelPinExecute(object? sender, EventArgs e)
     {
-        _board.Pins.Remove(UnderCursor);
+        _board.Pins.Remove(UnderCursor!);
     }
 
     private bool CropCanExecute()
@@ -231,6 +231,6 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void CropExecute(object? sender, EventArgs e)
     {
-        _newEditMode.OnNext(new CropEditMode(_viewModel, UnderCursor, _settings, this));
+        _newEditMode.OnNext(new CropEditMode(_viewModel, UnderCursor!, _settings, this));
     }
 }

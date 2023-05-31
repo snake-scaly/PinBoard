@@ -1,41 +1,72 @@
+using System.Text.RegularExpressions;
 using Eto.Drawing;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
+using Splat;
 
 namespace PinBoard;
 
 public class Pin : ReactiveObject
 {
-    private readonly float _initialSize;
-
     public Pin(Uri url, PointF center, float initialSize)
     {
-        _initialSize = initialSize;
-        CurrentImage = new PinIcon(Bitmap.FromResource("PinBoard.Resources.file-icon.png"));
         Center = center;
-        _ = LoadAsync(url);
+
+        if (url.IsFile)
+            SetInitialImage(new Bitmap(url.LocalPath), initialSize);
+        else
+            _ = LoadAsync(url, initialSize);
     }
 
-    private async Task LoadAsync(Uri url)
+    public Pin(Image image, PointF center, float scale)
     {
+        CurrentImage = new PinImage(image);
+        Center = center;
+        Scale = scale;
+    }
+
+    private async Task LoadAsync(Uri url, float initialSize)
+    {
+        CurrentImage = new PinIcon(Bitmap.FromResource("PinBoard.Resources.url-icon.png"));
+
         try
         {
-            var image = await Task.Run(
-                    () =>
-                    {
-                        Task.Delay(TimeSpan.FromSeconds(5)).Wait();
-                        return new Bitmap(url.LocalPath);
-                    })
-                .ConfigureAwait(continueOnCapturedContext: true);
-
-            CurrentImage = new PinImage(image);
-            Scale = Math.Min(_initialSize / image.Width, _initialSize / image.Height);
+            var bitmap = await Task.Run(() => LoadSync(url)).ConfigureAwait(continueOnCapturedContext: true);
+            SetInitialImage(bitmap, initialSize);
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
-            CurrentImage = new PinIcon(Bitmap.FromResource("PinBoard.Resources.file-error-icon.png"));
+            CurrentImage = new PinIcon(Bitmap.FromResource("PinBoard.Resources.url-error-icon.png"));
         }
+    }
+
+    private static Bitmap LoadSync(Uri url)
+    {
+        Console.WriteLine($"Loading {url}");
+
+        var httpClient = Locator.Current.GetService<HttpClient>();
+        var response = httpClient!.GetAsync(url).GetAwaiter().GetResult();
+
+        if (response.Content.Headers.ContentType?.ToString().StartsWith("image/") == true)
+            return new Bitmap(response.Content.ReadAsStream());
+
+        // Google search
+        if (response.Content.Headers.ContentType?.ToString().StartsWith("text/html") == true)
+        {
+            var html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var match = Regex.Match(html, @"imageUrl='([^']*?)'");
+            if (match.Success)
+                return LoadSync(new Uri(match.Groups[1].Value));
+        }
+
+        throw new Exception($"Not an image: {response.Content.Headers.ContentType}\n{response.Content.ReadAsStringAsync().GetAwaiter().GetResult()}");
+    }
+
+    private void SetInitialImage(Image image, float initialSize)
+    {
+        CurrentImage = new PinImage(image);
+        Scale = Math.Min(initialSize / image.Width, initialSize / image.Height);
     }
 
     [Reactive]

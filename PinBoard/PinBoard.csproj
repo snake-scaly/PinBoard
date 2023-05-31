@@ -9,11 +9,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Eto.Forms" Version="2.7.2" />
-      <PackageReference Include="Eto.Platform.Gtk" Version="2.7.2" />
-      <PackageReference Include="Eto.Serialization.Xaml" Version="2.7.2" />
-      <PackageReference Include="ReactiveUI" Version="18.4.1" />
-      <PackageReference Include="ReactiveUI.Fody" Version="18.4.1" />
+      <PackageReference Include="Eto.Forms" Version="2.7.5" />
+      <PackageReference Include="Eto.Platform.Gtk" Version="2.7.5" />
+      <PackageReference Include="Eto.Serialization.Xaml" Version="2.7.5" />
+      <PackageReference Include="ReactiveUI" Version="18.4.44" />
+      <PackageReference Include="ReactiveUI.Fody" Version="18.4.44" />
     </ItemGroup>
 
     <ItemGroup>
