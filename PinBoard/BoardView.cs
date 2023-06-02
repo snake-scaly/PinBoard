@@ -63,13 +63,7 @@ public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
 
     public void Add(Uri url)
     {
-        var screenSize = Math.Min(Width / 2f, Height / 2f);
-        var x = Random.Shared.NextSingle() * (Width - screenSize) + screenSize / 2;
-        var y = Random.Shared.NextSingle() * (Height - screenSize) + screenSize / 2;
-        var boardLocation = ViewModel.ViewBoardTransform.TransformPoint(new PointF(x, y));
-        var boardSize = ViewModel.ViewBoardTransform.TransformSize(new SizeF(screenSize, 0)).Width;
-
-        _board.Pins.Add(new Pin(url, boardLocation, boardSize));
+        _board.Add(url, ViewModel.ViewBoardTransform.TransformRectangle(new RectangleF(default, Size)));
     }
     
     protected override void Dispose(bool disposing)
@@ -134,24 +128,23 @@ public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
         LogDrag(nameof(OnDragDrop), e);
 
         var boardLocation = ViewModel.ViewBoardTransform.TransformPoint(e.Location);
-        var boardSize = ViewModel.ViewBoardTransform.TransformSize(new SizeF(Width / 2f, Height / 2f));
+        var boardViewport = ViewModel.ViewBoardTransform.TransformRectangle(new RectangleF(default, Size));
 
         if (e.Data.ContainsImage)
         {
-            var boardScale = boardSize / e.Data.Image.Size;
-            _board.Pins.Add(new Pin(e.Data.Image, boardLocation, Math.Min(boardScale.Width, boardScale.Height)));
+            _board.Add(e.Data.Image, boardViewport, boardLocation);
         }
         else if (e.Data.ContainsUris)
         {
             if (e.Data.Uris.Length == 1)
-                _board.Pins.Add(new Pin(e.Data.Uris[0], boardLocation, Math.Min(boardSize.Width, boardSize.Height)));
+                _board.Add(e.Data.Uris[0], boardViewport, boardLocation);
             else
                 foreach (var uri in e.Data.Uris)
-                    Add(uri);
+                    _board.Add(uri, boardViewport);
         }
         else if (e.Data.ContainsText)
         {
-            _board.Pins.Add(new Pin(new Uri(e.Data.Text), boardLocation, Math.Min(boardSize.Width, boardSize.Height)));
+            _board.Add(new Uri(e.Data.Text), boardViewport, boardLocation);
         }
     }
 
