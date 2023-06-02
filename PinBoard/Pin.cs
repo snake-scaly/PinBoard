@@ -55,9 +55,17 @@ public class Pin : ReactiveObject
         if (response.Content.Headers.ContentType?.ToString().StartsWith("text/html") == true)
         {
             var html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            var match = Regex.Match(html, @"imageUrl='([^']*?)'");
+            Console.WriteLine($"Got text/html\n{html}");
+
+            var match = Regex.Match(html, @"imageUrl='([^?']*)");
             if (match.Success)
                 return LoadSync(new Uri(match.Groups[1].Value));
+
+            match = Regex.Match(html, @"<a href=""(https://[^?""]*).*?"">\1");
+            if (match.Success)
+                return LoadSync(new Uri(match.Groups[1].Value));
+
+            throw new Exception("No match found");
         }
 
         throw new Exception($"Not an image: {response.Content.Headers.ContentType}\n{response.Content.ReadAsStringAsync().GetAwaiter().GetResult()}");
