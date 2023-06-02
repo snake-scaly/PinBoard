@@ -34,7 +34,13 @@ public class MainWindow : Form
             Shortcut = Keys.Control | Keys.I,
         };
 
-        var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileCommand } };
+        var pasteCommand = new Command(OnPaste)
+        {
+            MenuText = "&Paste",
+            Shortcut = Keys.Control | Keys.V,
+        };
+
+        var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileCommand, pasteCommand } };
 
         Menu = new MenuBar(boardSubMenu);
 
@@ -67,5 +73,12 @@ public class MainWindow : Form
         }
         if (errors.Any())
             MessageBox.Show(this, string.Join("\n", errors), "Couldn't open some files", MessageBoxType.Warning);
+    }
+
+    private void OnPaste(object? sender, EventArgs e)
+    {
+        if (Clipboard.Instance.ContainsUris)
+            foreach (var uri in Clipboard.Instance.Uris)
+                _boardView.Add(uri);
     }
 }
