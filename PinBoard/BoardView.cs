@@ -102,15 +102,35 @@ public class BoardView : Panel, INotifyPropertyChanged
         EditMode.OnMouseMove(e);
     }
 
+    private void LogDrag(string method, DragEventArgs e)
+    {
+        var str = $"{method}: Effects={e.Effects} ContainsUris={e.Data.ContainsUris}";
+        if (e.Data.ContainsUris)
+            str += $": {string.Join(", ", e.Data.Uris.Select(x => x.ToString()))}";
+        Console.WriteLine(str);
+    }
     protected override void OnDragEnter(DragEventArgs e)
     {
         base.OnDragEnter(e);
         e.Effects = e.AllowedEffects & DragEffects.Copy | DragEffects.Link;
+        LogDrag(nameof(OnDragEnter), e);
+    }
+
+    private DateTimeOffset _lastDragLog;
+    protected override void OnDragOver(DragEventArgs e)
+    {
+        base.OnDragOver(e);
+        if (DateTimeOffset.Now - _lastDragLog >= TimeSpan.FromSeconds(1))
+        {
+            LogDrag(nameof(OnDragOver), e);
+            _lastDragLog = DateTimeOffset.Now;
+        }
     }
 
     protected override void OnDragDrop(DragEventArgs e)
     {
         base.OnDragDrop(e);
+        LogDrag(nameof(OnDragDrop), e);
 
         var boardLocation = ViewModel.ViewBoardTransform.TransformPoint(e.Location);
         var boardSize = ViewModel.ViewBoardTransform.TransformSize(new SizeF(Width / 2f, Height / 2f));
