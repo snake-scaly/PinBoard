@@ -37,10 +37,10 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
         var pullForwardCommand = new Command(PullForwardExecute) { MenuText = "Pull Forward" };
         var pushBackCommand = new Command(PushBackExecute) { MenuText = "Push Back" };
-        var delPinCommand = new Command(DelPinExecute) { MenuText = "Remove" };
         var cropCommand = new Command(CropExecute) { MenuText = "Crop" };
+        var delPinCommand = new Command(DelPinExecute) { MenuText = "Close" };
 
-        ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, delPinCommand, cropCommand);
+        ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, cropCommand, delPinCommand);
 
         var pinListChangeSets = _board.Pins.Connect().Publish();
         var pinChanges = pinListChangeSets.MergeMany(x => x.Changed.Select(_ => default(Unit))).Publish();
