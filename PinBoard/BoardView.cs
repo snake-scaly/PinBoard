@@ -6,10 +6,11 @@ using DynamicData;
 using Eto.Drawing;
 using Eto.Forms;
 using ReactiveUI;
+using Splat;
 
 namespace PinBoard;
 
-public class BoardView : Panel, INotifyPropertyChanged
+public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
 {
     private readonly Board _board;
     private readonly Drawable _canvas;
@@ -104,11 +105,11 @@ public class BoardView : Panel, INotifyPropertyChanged
 
     private void LogDrag(string method, DragEventArgs e)
     {
-        var str = $"{method}: Effects={e.Effects} ContainsUris={e.Data.ContainsUris}";
-        if (e.Data.ContainsUris)
-            str += $": {string.Join(", ", e.Data.Uris.Select(x => x.ToString()))}";
-        Console.WriteLine(str);
+        this.Log().Debug(
+            "{method}: Effects={effects}, ContainsUris={ContainsUris}, Uris={Uris}",
+            method, e.Effects, e.Data.ContainsUris, e.Data.ContainsUris ? e.Data.Uris : null);
     }
+
     protected override void OnDragEnter(DragEventArgs e)
     {
         base.OnDragEnter(e);

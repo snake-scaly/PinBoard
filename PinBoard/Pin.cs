@@ -36,14 +36,14 @@ public class Pin : ReactiveObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log().Error(e, "Bitmap load failed");
             CurrentImage = new PinIcon(Bitmap.FromResource("PinBoard.Resources.url-error-icon.png"));
         }
     }
 
-    private static Bitmap LoadSync(Uri url)
+    private Bitmap LoadSync(Uri url)
     {
-        Console.WriteLine($"Loading {url}");
+        this.Log().Info("Loading {url}", url);
 
         var httpClient = Locator.Current.GetService<HttpClient>();
         var response = httpClient!.GetAsync(url).GetAwaiter().GetResult();
@@ -55,7 +55,7 @@ public class Pin : ReactiveObject
         if (response.Content.Headers.ContentType?.ToString().StartsWith("text/html") == true)
         {
             var html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            Console.WriteLine($"Got text/html\n{html}");
+            this.Log().Debug("Got text/html {html}", html);
 
             var match = Regex.Match(html, @"imageUrl='([^?']*)");
             if (match.Success)
