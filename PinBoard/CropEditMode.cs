@@ -56,29 +56,18 @@ public sealed class CropEditMode : IEditMode
         _disposables.Dispose();
     }
 
-    public void OnMouseDown(MouseEventArgs e)
+    public void Attach(Control owner)
     {
-        if (e.Buttons == MouseButtons.Primary && _hitZone != HitZone.Outside)
-        {
-            _drag = true;
-            _dragOffset = _cropRect.Location - _viewModel.ViewBoardTransform.TransformPoint(e.Location);
-        }
+        owner.MouseDown += OnMouseDown;
+        owner.MouseUp += OnMouseUp;
+        owner.MouseMove += OnMouseMove;
     }
 
-    public void OnMouseUp(MouseEventArgs e)
+    public void Detach(Control owner)
     {
-        _drag = false;
-        if (e.Buttons == MouseButtons.Alternate)
-            _showContextMenu.OnNext(e.Location);
-    }
-
-    public void OnMouseMove(MouseEventArgs e)
-    {
-        if (_drag)
-            MoveUnderCursor(e.Location);
-        else
-            _hitZone = Utils.HitTest(_viewModel.BoardViewTransform.TransformRectangle(_cropRect), e.Location, _settings.DragMargin);
-        _cursor.OnNext(Utils.HitZoneToCursor(_hitZone));
+        owner.MouseDown -= OnMouseDown;
+        owner.MouseUp -= OnMouseUp;
+        owner.MouseMove -= OnMouseMove;
     }
 
     public void OnPaint(PaintEventArgs e)
@@ -95,6 +84,31 @@ public sealed class CropEditMode : IEditMode
         var path = GraphicsPath.GetRoundRect(viewCropRect, 3);
         e.Graphics.DrawPath(new Pen(_settings.BackgroundColor, 4), path);
         e.Graphics.DrawPath(new Pen(Colors.White, 2), path);
+    }
+
+    private void OnMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Buttons == MouseButtons.Primary && _hitZone != HitZone.Outside)
+        {
+            _drag = true;
+            _dragOffset = _cropRect.Location - _viewModel.ViewBoardTransform.TransformPoint(e.Location);
+        }
+    }
+
+    private void OnMouseUp(object? sender, MouseEventArgs e)
+    {
+        _drag = false;
+        if (e.Buttons == MouseButtons.Alternate)
+            _showContextMenu.OnNext(e.Location);
+    }
+
+    private void OnMouseMove(object? sender, MouseEventArgs e)
+    {
+        if (_drag)
+            MoveUnderCursor(e.Location);
+        else
+            _hitZone = Utils.HitTest(_viewModel.BoardViewTransform.TransformRectangle(_cropRect), e.Location, _settings.DragMargin);
+        _cursor.OnNext(Utils.HitZoneToCursor(_hitZone));
     }
 
     private static IEnumerable<RectangleF> Cutout(RectangleF rect, RectangleF hole)

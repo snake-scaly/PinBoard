@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
-using DynamicData;
 using Eto.Drawing;
 using Eto.Forms;
 using ReactiveUI;
@@ -36,13 +35,24 @@ public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
             .DisposeWith(_disposables);
 
         _editMode = new BoardEditMode(_board, ViewModel, settings);
+        _editMode.Attach(this);
 
         this.WhenAnyValue(x => x.EditMode.ContextMenu).Subscribe(x => ContextMenu = x).DisposeWith(_disposables);
         this.WhenAnyObservable(x => x.EditMode.Invalidated).Subscribe(_ => Invalidate()).DisposeWith(_disposables);
         this.WhenAnyObservable(x => x.EditMode.Cursor).Subscribe(x => Cursor = x).DisposeWith(_disposables);
         this.WhenAnyObservable(x => x.EditMode.ShowContextMenu).Subscribe(x => ContextMenu.Show(PointToScreen(x))).DisposeWith(_disposables);
         this.WhenAnyObservable(x => x.EditMode.NewEditMode).Subscribe(x => EditMode = x).DisposeWith(_disposables);
-        this.WhenAnyValue(x => x.EditMode).Subscribe(_ => Invalidate()).DisposeWith(_disposables);
+
+        this.WhenAnyValue(x => x.EditMode)
+            .Buffer(2, 1)
+            .Subscribe(
+                x =>
+                {
+                    x[0].Detach(this);
+                    x[1].Attach(this);
+                    Invalidate();
+                })
+            .DisposeWith(_disposables);
     }
 
     protected override void OnLoad(EventArgs e)
@@ -71,81 +81,6 @@ public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
         if (disposing)
             _disposables.Dispose();
         base.Dispose(disposing);
-    }
-
-    protected override void OnMouseDown(MouseEventArgs e)
-    {
-        base.OnMouseDown(e);
-        if (e.Handled)
-            return;
-        EditMode.OnMouseDown(e);
-    }
-
-    protected override void OnMouseUp(MouseEventArgs e)
-    {
-        base.OnMouseUp(e);
-        if (e.Handled)
-            return;
-        EditMode.OnMouseUp(e);
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        base.OnMouseMove(e);
-        if (e.Handled)
-            return;
-        EditMode.OnMouseMove(e);
-    }
-
-    private void LogDrag(string method, DragEventArgs e)
-    {
-        this.Log().Debug(
-            "{method}: Effects={effects}, ContainsUris={ContainsUris}, Uris={Uris}",
-            method, e.Effects, e.Data.ContainsUris, e.Data.ContainsUris ? e.Data.Uris : null);
-    }
-
-    protected override void OnDragEnter(DragEventArgs e)
-    {
-        base.OnDragEnter(e);
-        e.Effects = e.AllowedEffects & DragEffects.Copy | DragEffects.Link;
-        LogDrag(nameof(OnDragEnter), e);
-    }
-
-    private DateTimeOffset _lastDragLog;
-    protected override void OnDragOver(DragEventArgs e)
-    {
-        base.OnDragOver(e);
-        if (DateTimeOffset.Now - _lastDragLog >= TimeSpan.FromSeconds(1))
-        {
-            LogDrag(nameof(OnDragOver), e);
-            _lastDragLog = DateTimeOffset.Now;
-        }
-    }
-
-    protected override void OnDragDrop(DragEventArgs e)
-    {
-        base.OnDragDrop(e);
-        LogDrag(nameof(OnDragDrop), e);
-
-        var boardLocation = ViewModel.ViewBoardTransform.TransformPoint(e.Location);
-        var boardViewport = ViewModel.ViewBoardTransform.TransformRectangle(new RectangleF(default, Size));
-
-        if (e.Data.ContainsImage)
-        {
-            _board.Add(e.Data.Image, boardViewport, boardLocation);
-        }
-        else if (e.Data.ContainsUris)
-        {
-            if (e.Data.Uris.Length == 1)
-                _board.Add(e.Data.Uris[0], boardViewport, boardLocation);
-            else
-                foreach (var uri in e.Data.Uris)
-                    _board.Add(uri, boardViewport);
-        }
-        else if (e.Data.ContainsText)
-        {
-            _board.Add(new Uri(e.Data.Text), boardViewport, boardLocation);
-        }
     }
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)

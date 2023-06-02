@@ -18,6 +18,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private bool _drag;
     private PointF _dragOffset;
+    private PointF? _lastMouseLocation;
 
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<PointF> _showContextMenu = new();
@@ -42,22 +43,50 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
         ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, cropCommand, delPinCommand);
 
-        var pinListChangeSets = _board.Pins.Connect().Publish();
-        var pinChanges = pinListChangeSets.MergeMany(x => x.Changed.Select(_ => default(Unit))).Publish();
+        var pinListChanges = _board.Pins.Connect().Publish();
+        pinListChanges.Connect().DisposeWith(_disposables);
 
-        pinListChangeSets.Connect().DisposeWith(_disposables);
-        pinChanges.Connect().DisposeWith(_disposables);
+        var pinContentChanges = pinListChanges.MergeMany(x => x.Changed).Select(_ => Unit.Default).Publish();
+        pinContentChanges.Connect().DisposeWith(_disposables);
 
-        var selectionChanges = this.WhenAnyValue(x => x.UnderCursor).Select(_ => default(Unit));
-        var listChanges = pinListChangeSets.Select(_ => default(Unit));
-        var orderChanges = listChanges.Merge(selectionChanges);
-        var anyChanges = orderChanges.Merge(pinChanges);
+        // When anything changes
+        this.WhenAny(x => x.UnderCursor, _ => Unit.Default)
+            .Merge(pinListChanges.Select(_ => Unit.Default))
+            .Merge(pinContentChanges)
+            .Subscribe(_ => _invalidated.OnNext(default))
+            .DisposeWith(_disposables);
 
-        orderChanges.Subscribe(_ => pullForwardCommand.Enabled = PullForwardCanExecute());
-        orderChanges.Subscribe(_ => pushBackCommand.Enabled = PushBackCanExecute());
-        selectionChanges.Subscribe(_ => delPinCommand.Enabled = DelPinCanExecute());
-        selectionChanges.Subscribe(_ => cropCommand.Enabled = CropCanExecute());
-        anyChanges.Subscribe(_ => _invalidated.OnNext(default));
+        // When the list order or state of any item in the list changes
+        pinListChanges.Select(_ => Unit.Default)
+            .Merge(pinContentChanges)
+            .Subscribe(
+                _ =>
+                {
+                    if (_lastMouseLocation != null && !_drag)
+                        FindUnderCursor(_lastMouseLocation.Value);
+                })
+            .DisposeWith(_disposables);
+
+        // When selection or selected item state changes
+        this.WhenAnyObservable(x => x.UnderCursor.Changed).Select(_ => Unit.Default)
+            .Merge(this.WhenAny(x => x.UnderCursor, _ => Unit.Default))
+            .Subscribe(_ =>
+            {
+                cropCommand.Enabled = CropCanExecute();
+                delPinCommand.Enabled = DelPinCanExecute();
+            })
+            .DisposeWith(_disposables);
+
+        // When list order or selection changes
+        pinListChanges.Select(_ => Unit.Default)
+            .Merge(this.WhenAny(x => x.UnderCursor, _ => Unit.Default))
+            .Subscribe(
+                _ =>
+                {
+                    pullForwardCommand.Enabled = PullForwardCanExecute();
+                    pushBackCommand.Enabled = PushBackCanExecute();
+                })
+            .DisposeWith(_disposables);
     }
 
     public ContextMenu ContextMenu { get; }
@@ -77,28 +106,22 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         _disposables.Dispose();
     }
 
-    public void OnMouseDown(MouseEventArgs e)
+    public void Attach(Control owner)
     {
-        if (e.Buttons == MouseButtons.Primary && UnderCursor != null)
-        {
-            _drag = true;
-            _dragOffset = _viewModel.BoardViewTransform.TransformPoint(UnderCursor.Center) - e.Location;
-        }
+        owner.MouseDown += OnMouseDown;
+        owner.MouseUp += OnMouseUp;
+        owner.MouseMove += OnMouseMove;
+        owner.DragEnter += OnDragEnter;
+        owner.DragDrop += OnDragDrop;
     }
 
-    public void OnMouseUp(MouseEventArgs e)
+    public void Detach(Control owner)
     {
-        _drag = false;
-        if (e.Buttons == MouseButtons.Alternate && UnderCursor != null)
-            _showContextMenu.OnNext(e.Location);
-    }
-
-    public void OnMouseMove(MouseEventArgs e)
-    {
-        if (_drag)
-            MoveUnderCursor(e.Location);
-        else
-            FindUnderCursor(e.Location);
+        owner.MouseDown -= OnMouseDown;
+        owner.MouseUp -= OnMouseUp;
+        owner.MouseMove -= OnMouseMove;
+        owner.DragEnter -= OnDragEnter;
+        owner.DragDrop -= OnDragDrop;
     }
 
     public void OnPaint(PaintEventArgs e)
@@ -107,6 +130,66 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         e.Graphics.Clear(_settings.BackgroundColor);
         foreach (var pin in _board.Pins.Items)
             DrawPin(pin, e.Graphics);
+    }
+
+    private void OnMouseDown(object? sender, MouseEventArgs e)
+    {
+        _lastMouseLocation = e.Location;
+        FindUnderCursor(e.Location);
+        if (e.Buttons == MouseButtons.Primary && UnderCursor != null)
+        {
+            _drag = true;
+            _dragOffset = _viewModel.BoardViewTransform.TransformPoint(UnderCursor.Center) - e.Location;
+        }
+    }
+
+    private void OnMouseUp(object? sender, MouseEventArgs e)
+    {
+        _lastMouseLocation = e.Location;
+        _drag = false;
+        if (e.Buttons == MouseButtons.Alternate && UnderCursor != null)
+            _showContextMenu.OnNext(e.Location);
+    }
+
+    private void OnMouseMove(object? sender, MouseEventArgs e)
+    {
+        _lastMouseLocation = e.Location;
+        if (_drag)
+            MoveUnderCursor(e.Location);
+        else
+            FindUnderCursor(e.Location);
+    }
+
+    private void OnDragEnter(object? sender, DragEventArgs e)
+    {
+        e.Effects = e.AllowedEffects & DragEffects.Copy | DragEffects.Link;
+    }
+
+    private void OnDragDrop(object? sender, DragEventArgs e)
+    {
+        _lastMouseLocation = e.Location;
+
+        var control = sender as Control ?? throw new InvalidOperationException("Sender is not a control");
+
+        var boardLocation = _viewModel.ViewBoardTransform.TransformPoint(e.Location);
+        var boardViewport = _viewModel.ViewBoardTransform.TransformRectangle(new RectangleF(default, control.Size));
+
+        if (e.Data.ContainsImage)
+        {
+            _board.Add(e.Data.Image, boardViewport, boardLocation);
+        }
+        else if (e.Data.ContainsUris)
+        {
+            if (e.Data.Uris.Length == 1)
+                _board.Add(e.Data.Uris[0], boardViewport, boardLocation);
+            else
+                foreach (var uri in e.Data.Uris)
+                    _board.Add(uri, boardViewport);
+        }
+        else if (e.Data.ContainsText)
+        {
+            _board.Add(new Uri(e.Data.Text), boardViewport, boardLocation);
+        }
     }
 
     private void FindUnderCursor(PointF location)

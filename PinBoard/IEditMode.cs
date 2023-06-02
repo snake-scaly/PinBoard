@@ -16,11 +16,9 @@ public interface IEditMode : IDisposable
 
     IObservable<IEditMode> NewEditMode { get; }
 
-    void OnMouseDown(MouseEventArgs e);
+    void Attach(Control owner);
 
-    void OnMouseUp(MouseEventArgs e);
-
-    void OnMouseMove(MouseEventArgs e);
+    void Detach(Control owner);
 
     void OnPaint(PaintEventArgs e);
 }
