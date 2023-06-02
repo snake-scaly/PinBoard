@@ -16,12 +16,10 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     private readonly PanZoomModel _viewModel;
     private readonly Settings _settings;
 
-    private HitZone _hitZone;
     private bool _drag;
     private PointF _dragOffset;
 
     private readonly Subject<Unit> _invalidated = new();
-    private readonly Subject<Cursor> _cursor = new();
     private readonly Subject<PointF> _showContextMenu = new();
     private readonly Subject<IEditMode> _newEditMode = new();
     
@@ -33,7 +31,9 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         _viewModel = viewModel;
         _settings = settings;
 
-        Cursor = _cursor.DistinctUntilChanged();
+        Cursor = this.WhenAnyValue(x => x.CurrentHitZone)
+            .Select(Utils.HitZoneToCursor)
+            .DistinctUntilChanged();
 
         var pullForwardCommand = new Command(PullForwardExecute) { MenuText = "Pull Forward" };
         var pushBackCommand = new Command(PushBackExecute) { MenuText = "Push Back" };
@@ -69,6 +69,9 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     [Reactive]
     private Pin? UnderCursor { get; set; }
 
+    [Reactive]
+    private HitZone CurrentHitZone { get; set; }
+
     public void Dispose()
     {
         _disposables.Dispose();
@@ -96,7 +99,6 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             MoveUnderCursor(e.Location);
         else
             FindUnderCursor(e.Location);
-        _cursor.OnNext(Utils.HitZoneToCursor(_hitZone));
     }
 
     public void OnPaint(PaintEventArgs e)
@@ -122,43 +124,43 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             if (hitZone != HitZone.Outside)
             {
                 UnderCursor = pin;
-                _hitZone = hitZone;
+                CurrentHitZone = hitZone;
                 return;
             }
         }
 
         UnderCursor = null;
-        _hitZone = HitZone.Outside;
+        CurrentHitZone = HitZone.Outside;
     }
 
     private void MoveUnderCursor(PointF location)
     {
         var viewRect = UnderCursor!.GetViewBounds(_viewModel.BoardViewTransform);
 
-        if (_hitZone is HitZone.Center)
+        if (CurrentHitZone is HitZone.Center)
             viewRect.Center = location + _dragOffset;
-        if (_hitZone is HitZone.Left or HitZone.TopLeft or HitZone.BottomLeft)
+        if (CurrentHitZone is HitZone.Left or HitZone.TopLeft or HitZone.BottomLeft)
             viewRect.Left = location.X;
-        if (_hitZone is HitZone.Top or HitZone.TopLeft or HitZone.TopRight)
+        if (CurrentHitZone is HitZone.Top or HitZone.TopLeft or HitZone.TopRight)
             viewRect.Top = location.Y;
-        if (_hitZone is HitZone.Right or HitZone.TopRight or HitZone.BottomRight)
+        if (CurrentHitZone is HitZone.Right or HitZone.TopRight or HitZone.BottomRight)
             viewRect.Right = location.X;
-        if (_hitZone is HitZone.Bottom or HitZone.BottomLeft or HitZone.BottomRight)
+        if (CurrentHitZone is HitZone.Bottom or HitZone.BottomLeft or HitZone.BottomRight)
             viewRect.Bottom = location.Y;
 
-        if (_hitZone is HitZone.TopLeft)
+        if (CurrentHitZone is HitZone.TopLeft)
             viewRect.TopLeft = FixProportions(viewRect.TopLeft, viewRect.BottomRight, UnderCursor.OriginalSize);
-        if (_hitZone is HitZone.TopRight)
+        if (CurrentHitZone is HitZone.TopRight)
             viewRect.TopRight = FixProportions(viewRect.TopRight, viewRect.BottomLeft, UnderCursor.OriginalSize);
-        if (_hitZone is HitZone.BottomRight)
+        if (CurrentHitZone is HitZone.BottomRight)
             viewRect.BottomRight = FixProportions(viewRect.BottomRight, viewRect.TopLeft, UnderCursor.OriginalSize);
-        if (_hitZone is HitZone.BottomLeft)
+        if (CurrentHitZone is HitZone.BottomLeft)
             viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, UnderCursor.OriginalSize);
 
         UnderCursor.Center = _viewModel.ViewBoardTransform.TransformPoint(viewRect.Center);
         var boardSize = _viewModel.ViewBoardTransform.TransformSize(viewRect.Size);
 
-        if (_hitZone is HitZone.Top or HitZone.Bottom)
+        if (CurrentHitZone is HitZone.Top or HitZone.Bottom)
             UnderCursor.Scale = boardSize.Height / UnderCursor.OriginalSize.Height;
         else
             UnderCursor.Scale = boardSize.Width / UnderCursor.OriginalSize.Width;
