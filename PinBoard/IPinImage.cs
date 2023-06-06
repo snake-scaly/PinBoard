@@ -8,6 +8,8 @@ public interface IPinImage
 
     SizeF OriginalSize { get; }
 
+    RectangleF? CropRect { get; }
+
     RectangleF GetViewRect(IMatrix viewTransform, bool crop);
 
     void Render(Graphics g, IMatrix viewTransform, bool crop);

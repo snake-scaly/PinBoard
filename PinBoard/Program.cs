@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using Eto.Forms;
 using PinBoard;
+using PinBoard.Services;
 using Serilog;
 using Serilog.Events;
 using Splat;
@@ -22,7 +23,7 @@ var logger = new LoggerConfiguration()
     .CreateLogger();
 
 Locator.CurrentMutable.UseSerilogFullLogger(logger);
-
 Locator.CurrentMutable.RegisterLazySingleton(() => new HttpClient());
+Locator.CurrentMutable.RegisterConstant<IBoardFileService>(new BoardFileService());
 
 new Application().Run(new MainWindow());

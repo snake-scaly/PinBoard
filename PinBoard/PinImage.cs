@@ -7,15 +7,17 @@ public class PinImage : IPinImage
     private readonly Image _source;
     private RectangleF _sourceRect;
 
-    public PinImage(Image source)
+    public PinImage(Image source, RectangleF? sourceRect = null)
     {
         _source = source;
-        _sourceRect = new RectangleF(default, source.Size);
+        _sourceRect = sourceRect ?? new RectangleF(default, source.Size);
     }
 
     public bool IsIcon => false;
 
     public SizeF OriginalSize => _sourceRect.Size;
+
+    public RectangleF? CropRect => _sourceRect;
 
     public RectangleF GetViewRect(IMatrix viewTransform, bool crop)
     {

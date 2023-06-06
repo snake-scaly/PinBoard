@@ -15,6 +15,8 @@ public class PinIcon : IPinImage
 
     public SizeF OriginalSize => _source.Size;
 
+    public RectangleF? CropRect => null;
+
     public RectangleF GetViewRect(IMatrix viewTransform, bool crop)
     {
         return new RectangleF(_source.Size) { Center = viewTransform.TransformPoint(default) };

@@ -12,13 +12,13 @@ public class Board
         var size = Math.Min(viewport.Width / 2f, viewport.Height / 2f);
         var x = Random.Shared.NextSingle() * (viewport.Width - size) + size / 2 + viewport.Left;
         var y = Random.Shared.NextSingle() * (viewport.Height - size) + size / 2 + viewport.Top;
-        Pins.Add(new Pin(url, new PointF(x, y), size));
+        Pins.Add(new Pin(url, new PointF(x, y), initialSize: size));
     }
 
     public void Add(Uri url, RectangleF viewport, PointF location)
     {
         var size = Math.Min(viewport.Width / 2f, viewport.Height / 2f);
-        Pins.Add(new Pin(url, location, size));
+        Pins.Add(new Pin(url, location, initialSize: size));
     }
 
     public void Add(Image image, RectangleF viewport, PointF location)

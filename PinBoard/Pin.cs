@@ -8,14 +8,20 @@ namespace PinBoard;
 
 public class Pin : ReactiveObject
 {
-    public Pin(Uri url, PointF center, float initialSize)
+    private RectangleF? _initialCrop;
+
+    public Pin(Uri url, PointF center, float? scale = null, float? initialSize = null, RectangleF? initialCrop = null)
     {
+        Url = url;
         Center = center;
+        Scale = scale;
+        InitialSize = initialSize;
+        _initialCrop = initialCrop;
 
         if (url.IsFile)
-            SetInitialImage(new Bitmap(url.LocalPath), initialSize);
+            SetInitialImage(new Bitmap(url.LocalPath));
         else
-            _ = LoadAsync(url, initialSize);
+            _ = LoadAsync(url);
     }
 
     public Pin(Image image, PointF center, float scale)
@@ -25,14 +31,46 @@ public class Pin : ReactiveObject
         Scale = scale;
     }
 
-    private async Task LoadAsync(Uri url, float initialSize)
+    public Uri Url { get; }
+
+    [Reactive]
+    public PointF Center { get; set; }
+
+    [Reactive]
+    public float? Scale { get; set; }
+
+    public SizeF OriginalSize => CurrentImage.OriginalSize;
+
+    public bool CanResize => !CurrentImage.IsIcon;
+
+    public bool CanCrop => !CurrentImage.IsIcon;
+
+    public float? InitialSize { get; private set; }
+
+    public RectangleF? CropRect => CurrentImage.CropRect ?? _initialCrop;
+
+    [Reactive]
+    private IPinImage CurrentImage { get; set; }
+
+    public RectangleF GetViewBounds(IMatrix boardViewTransform, bool crop = true) => CurrentImage.GetViewRect(GetPinViewTransform(boardViewTransform), crop);
+
+    public void Render(Graphics g, IMatrix boardViewTransform, bool crop = true) => CurrentImage.Render(g, GetPinViewTransform(boardViewTransform), crop);
+
+    public void Crop(RectangleF boardRect)
+    {
+        var boardPinTransform = GetPinTransform().Inverse();
+        CurrentImage.Crop(boardPinTransform.TransformRectangle(boardRect));
+        Center = boardRect.Center;
+    }
+
+    private async Task LoadAsync(Uri url)
     {
         CurrentImage = new PinIcon(Bitmap.FromResource("PinBoard.Resources.url-icon.png"));
 
         try
         {
             var bitmap = await Task.Run(() => LoadSync(url)).ConfigureAwait(continueOnCapturedContext: true);
-            SetInitialImage(bitmap, initialSize);
+            SetInitialImage(bitmap);
         }
         catch (Exception e)
         {
@@ -71,43 +109,22 @@ public class Pin : ReactiveObject
         throw new Exception($"Not an image: {response.Content.Headers.ContentType}\n{response.Content.ReadAsStringAsync().GetAwaiter().GetResult()}");
     }
 
-    private void SetInitialImage(Image image, float initialSize)
+    private void SetInitialImage(Image image)
     {
-        CurrentImage = new PinImage(image);
-        Scale = Math.Min(initialSize / image.Width, initialSize / image.Height);
-    }
+        CurrentImage = new PinImage(image, _initialCrop);
 
-    [Reactive]
-    public PointF Center { get; set; }
-
-    [Reactive]
-    public float Scale { get; set; } = 1;
-
-    public SizeF OriginalSize => CurrentImage.OriginalSize;
-
-    public bool CanResize => !CurrentImage.IsIcon;
-
-    public bool CanCrop => !CurrentImage.IsIcon;
-
-    [Reactive]
-    private IPinImage CurrentImage { get; set; }
-
-    public RectangleF GetViewBounds(IMatrix boardViewTransform, bool crop = true) => CurrentImage.GetViewRect(GetPinViewTransform(boardViewTransform), crop);
-
-    public void Render(Graphics g, IMatrix boardViewTransform, bool crop = true) => CurrentImage.Render(g, GetPinViewTransform(boardViewTransform), crop);
-
-    public void Crop(RectangleF boardRect)
-    {
-        var boardPinTransform = GetPinTransform().Inverse();
-        CurrentImage.Crop(boardPinTransform.TransformRectangle(boardRect));
-        Center = boardRect.Center;
+        if (InitialSize != null)
+        {
+            Scale = Math.Min(InitialSize.Value / image.Width, InitialSize.Value / image.Height);
+            InitialSize = null;
+        }
     }
 
     private IMatrix GetPinTransform()
     {
         var m = Matrix.Create();
         m.Translate(Center);
-        m.Scale(Scale);
+        m.Scale(Scale ?? 1f);
         return m;
     }
 
