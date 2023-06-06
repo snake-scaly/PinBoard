@@ -1,7 +1,9 @@
 ﻿using System.Reflection;
 using Eto.Forms;
 using PinBoard;
+using PinBoard.Rx;
 using PinBoard.Services;
+using ReactiveUI;
 using Serilog;
 using Serilog.Events;
 using Splat;
@@ -26,4 +28,5 @@ Locator.CurrentMutable.UseSerilogFullLogger(logger);
 Locator.CurrentMutable.RegisterLazySingleton(() => new HttpClient());
 Locator.CurrentMutable.RegisterConstant<IBoardFileService>(new BoardFileService());
 
+RxApp.MainThreadScheduler = new EtoMainThreadScheduler();
 new Application().Run(new MainWindow());
