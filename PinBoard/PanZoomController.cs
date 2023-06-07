@@ -2,6 +2,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using Eto.Drawing;
 using Eto.Forms;
+using PinBoard.Models;
 
 namespace PinBoard;
 

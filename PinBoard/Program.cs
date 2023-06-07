@@ -29,4 +29,6 @@ Locator.CurrentMutable.RegisterLazySingleton(() => new HttpClient());
 Locator.CurrentMutable.RegisterConstant<IBoardFileService>(new BoardFileService());
 
 RxApp.MainThreadScheduler = new EtoMainThreadScheduler();
-new Application().Run(new MainWindow());
+var app = new Application();
+app.UIThreadCheckMode = UIThreadCheckMode.Error;
+app.Run(new MainWindow());

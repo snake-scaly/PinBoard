@@ -1,7 +1,10 @@
 using Eto.Drawing;
 using Eto.Forms;
+using PinBoard.Controls;
+using PinBoard.Models;
 using PinBoard.Services;
 using PinBoard.Util;
+using PinBoard.ViewModels;
 using ReactiveUI;
 using Splat;
 
@@ -21,8 +24,10 @@ public class MainWindow : Form
         ClientSize = new Size(800, 600);
         _board = new Board();
         _boardView = new BoardView(_board, _settings);
+        DataContext = new MainViewModel(_board);
+        this.BindDataContext(x => x.Title, (MainViewModel x) => x.Title, DualBindingMode.OneWay);
 
-        var scaleLabel = new Label { Text = "100%",  };
+        var scaleLabel = new Label { Text = "100%" };
         var scalePanel = new Panel { Content = scaleLabel, Padding = new Padding(6, 4) };
         var toolbar = new TableLayout(
             new TableRow(
@@ -34,9 +39,11 @@ public class MainWindow : Form
             new TableRow(new TableCell(toolbar)));
 
         var openBoardCommand = new Command(OnOpen) { MenuText = "&Open...", Shortcut = Keys.Control | Keys.O };
+        var saveBoardCommand = new Command(OnSave) { Parent = this, MenuText = "&Save", Shortcut = Keys.Control | Keys.S };
+        saveBoardCommand.BindDataContext(x => x.Enabled, (MainViewModel m) => m.EnableSave, DualBindingMode.OneWay);
         var saveBoardAsCommand = new Command(OnSaveAs) { MenuText = "Save &As...", Shortcut = Keys.Control | Keys.Shift | Keys.S };
-        var exitCommand = new Command((_, _) => Close()) { MenuText = "E&xit", Shortcut = Keys.Alt | Keys.F4 };
-        var fileSubMenu = new SubMenuItem { Text = "&File", Items = { openBoardCommand, saveBoardAsCommand, new SeparatorMenuItem(), exitCommand } };
+        var exitCommand = new Command((_, _) => Application.Instance.Quit()) { MenuText = "E&xit", Shortcut = Keys.Alt | Keys.F4 };
+        var fileSubMenu = new SubMenuItem { Text = "&File", Items = { openBoardCommand, saveBoardCommand, saveBoardAsCommand, new SeparatorMenuItem(), exitCommand } };
         var pinFileCommand = new Command(OnPinFile) { MenuText = "Pin F&iles...", Shortcut = Keys.Control | Keys.I };
         var pasteCommand = new Command(OnPaste) { MenuText = "&Paste", Shortcut = Keys.Control | Keys.V };
         var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileCommand, pasteCommand } };
@@ -60,6 +67,14 @@ public class MainWindow : Form
             return;
 
         _boardFileService.Load(_board, ofd.FileName);
+    }
+
+    private void OnSave(object? sender, EventArgs e)
+    {
+        if (_board.Filename != null)
+            _boardFileService.Save(_board, _board.Filename);
+        else
+            OnSaveAs(sender, e);
     }
 
     private void OnSaveAs(object? sender, EventArgs e)

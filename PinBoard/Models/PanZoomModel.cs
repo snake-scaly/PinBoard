@@ -3,7 +3,7 @@ using Eto.Drawing;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 
-namespace PinBoard;
+namespace PinBoard.Models;
 
 public class PanZoomModel : ReactiveObject
 {

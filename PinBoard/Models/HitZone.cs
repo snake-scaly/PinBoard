@@ -1,4 +1,4 @@
-namespace PinBoard;
+namespace PinBoard.Models;
 
 public enum HitZone
 {

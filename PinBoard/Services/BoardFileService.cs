@@ -1,10 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Eto.Drawing;
+using PinBoard.Models;
+using Splat;
 
 namespace PinBoard.Services;
 
-public class BoardFileService : IBoardFileService
+public class BoardFileService : IBoardFileService, IEnableLogger
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -16,8 +18,12 @@ public class BoardFileService : IBoardFileService
     public void Load(Board board, string filename)
     {
         var json = File.ReadAllText(filename);
-        var boardData = JsonSerializer.Deserialize<BoardDto>(json, _jsonOptions);
-        var pins = boardData.Pins.Select(x => x.ToPin());
+
+        var boardDto = JsonSerializer.Deserialize<BoardDto>(json, _jsonOptions);
+        if (boardDto?.Pins == null)
+            throw new BoardFormatException("Invalid file format");
+
+        var pins = boardDto.Pins.Select(x => x.ToPin());
 
         board.Pins.Edit(
             x =>
@@ -25,14 +31,23 @@ public class BoardFileService : IBoardFileService
                 x.Clear();
                 x.AddRange(pins);
             });
+
+        board.Filename = filename;
+        board.Modified = false;
     }
 
     public void Save(Board board, string filename)
     {
-        var pinDtoList = board.Pins.Items.Select(PinDto.FromPin).ToList();
+        if (board.Pins.Items.Any(x => x.Url == null))
+            this.Log().Warn("Unable to save image-only pins, skipping");
+
+        var pinDtoList = board.Pins.Items.Where(x => x.Url != null).Select(PinDto.FromPin).ToList();
         var boardDto = new BoardDto { Pins = pinDtoList };
         var json = JsonSerializer.Serialize(boardDto, _jsonOptions);
         File.WriteAllText(filename, json);
+
+        board.Filename = filename;
+        board.Modified = false;
     }
 
     private class BoardDto
@@ -52,7 +67,7 @@ public class BoardFileService : IBoardFileService
         {
             return new PinDto
             {
-                Url = pin.Url.ToString(),
+                Url = pin.Url?.ToString(),
                 Center = Point.FromEto(pin.Center),
                 Scale = pin.Scale,
                 Crop = pin.CropRect == null ? null : Rect.FromEto(pin.CropRect.Value),
@@ -68,12 +83,12 @@ public class BoardFileService : IBoardFileService
                 throw new BoardFormatException($"{nameof(Center)} is missing");
 
             var url = new Uri(Url);
-            var location = Center.ToEto();
+            var center = Center.ToEto();
 
             if (Scale != null && Crop != null)
-                return new Pin(url, location, scale: Scale, initialCrop: Crop.ToEto());
+                return new Pin(url, center, Scale.Value, Crop.ToEto());
             if (InitialSize != null)
-                return new Pin(url, location, initialSize: InitialSize);
+                return new Pin(url, center, InitialSize.Value);
 
             throw new BoardFormatException($"{nameof(Scale)}/{nameof(Crop)} or {nameof(InitialSize)} is required");
         }

@@ -4,10 +4,11 @@ using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
 using Eto.Drawing;
 using Eto.Forms;
+using PinBoard.Models;
 using ReactiveUI;
 using Splat;
 
-namespace PinBoard;
+namespace PinBoard.Controls;
 
 public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
 {

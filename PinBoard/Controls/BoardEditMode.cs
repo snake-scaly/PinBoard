@@ -5,10 +5,13 @@ using System.Reactive.Subjects;
 using DynamicData;
 using Eto.Drawing;
 using Eto.Forms;
+using PinBoard.Models;
+using PinBoard.Util;
+using PinBoard.ViewModels;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 
-namespace PinBoard;
+namespace PinBoard.Controls;
 
 public sealed class BoardEditMode : ReactiveObject, IEditMode
 {
@@ -16,6 +19,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     private readonly PanZoomModel _viewModel;
     private readonly Settings _settings;
 
+    private readonly IObservableList<PinViewModel> _pinViews;
     private bool _drag;
     private PointF _dragOffset;
     private PointF? _lastMouseLocation;
@@ -43,11 +47,20 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
         ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, cropCommand, delPinCommand);
 
-        var pinListChanges = _board.Pins.Connect().Publish();
-        pinListChanges.Connect().DisposeWith(_disposables);
+        _pinViews = _board.Pins.Connect()
+            .Transform(x => new PinViewModel(x))
+            .AsObservableList();
+        _pinViews.DisposeWith(_disposables);
 
-        var pinContentChanges = pinListChanges.MergeMany(x => x.Changed).Select(_ => Unit.Default).Publish();
-        pinContentChanges.Connect().DisposeWith(_disposables);
+        var pinListChanges = _pinViews.Connect()
+            .Publish();
+        pinListChanges.Connect()
+            .DisposeWith(_disposables);
+
+        var pinContentChanges = pinListChanges.MergeMany(x => x.Updates)
+            .Publish();
+        pinContentChanges.Connect()
+            .DisposeWith(_disposables);
 
         // When anything changes
         this.WhenAny(x => x.UnderCursor, _ => Unit.Default)
@@ -68,7 +81,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             .DisposeWith(_disposables);
 
         // When selection or selected item state changes
-        this.WhenAnyObservable(x => x.UnderCursor.Changed).Select(_ => Unit.Default)
+        this.WhenAnyObservable(x => x.UnderCursor!.Updates)
             .Merge(this.WhenAny(x => x.UnderCursor, _ => Unit.Default))
             .Subscribe(_ =>
             {
@@ -96,7 +109,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     public IObservable<IEditMode> NewEditMode => _newEditMode.AsObservable();
 
     [Reactive]
-    private Pin? UnderCursor { get; set; }
+    private PinViewModel? UnderCursor { get; set; }
 
     [Reactive]
     private HitZone CurrentHitZone { get; set; }
@@ -128,8 +141,8 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     {
         e.Graphics.ImageInterpolation = ImageInterpolation.Low;
         e.Graphics.Clear(_settings.BackgroundColor);
-        foreach (var pin in _board.Pins.Items)
-            DrawPin(pin, e.Graphics);
+        foreach (var pinView in _pinViews.Items)
+            DrawPin(pinView, e.Graphics);
     }
 
     private void OnMouseDown(object? sender, MouseEventArgs e)
@@ -139,7 +152,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         if (e.Buttons == MouseButtons.Primary && UnderCursor != null)
         {
             _drag = true;
-            _dragOffset = _viewModel.BoardViewTransform.TransformPoint(UnderCursor.Center) - e.Location;
+            _dragOffset = _viewModel.BoardViewTransform.TransformPoint(UnderCursor.Pin.Center) - e.Location;
         }
     }
 
@@ -195,14 +208,21 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     private void FindUnderCursor(PointF location)
     {
         var viewTransform = _viewModel.BoardViewTransform;
-        foreach (var pin in _board.Pins.Items.Reverse())
+        foreach (var pin in _pinViews.Items.Reverse())
         {
-            var r = pin.GetViewBounds(viewTransform);
-            HitZone hitZone;
-            if (pin.CanResize)
+            HitZone hitZone = HitZone.Outside;
+
+            if (pin.Image != null)
+            {
+                var r = viewTransform.TransformRectangle(pin.DisplayRect.Value);
                 hitZone = Utils.HitTest(r, location, _settings.DragMargin);
-            else
+            }
+            else if (pin.Icon != null)
+            {
+                var center = viewTransform.TransformPoint(pin.Pin.Center);
+                var r = new RectangleF(default, pin.Icon.Size) { Center = center };
                 hitZone = r.Contains(location) ? HitZone.Center : HitZone.Outside;
+            }
 
             if (hitZone != HitZone.Outside)
             {
@@ -218,7 +238,13 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void MoveUnderCursor(PointF location)
     {
-        var viewRect = UnderCursor!.GetViewBounds(_viewModel.BoardViewTransform);
+        if (UnderCursor!.Icon != null)
+        {
+            UnderCursor.Pin.Edit(pin => pin.Center = _viewModel.ViewBoardTransform.TransformPoint(location + _dragOffset));
+            return;
+        }
+
+        var viewRect = _viewModel.BoardViewTransform.TransformRectangle(UnderCursor.DisplayRect.Value);
 
         if (CurrentHitZone is HitZone.Center)
             viewRect.Center = location + _dragOffset;
@@ -232,21 +258,25 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
             viewRect.Bottom = location.Y;
 
         if (CurrentHitZone is HitZone.TopLeft)
-            viewRect.TopLeft = FixProportions(viewRect.TopLeft, viewRect.BottomRight, UnderCursor.OriginalSize);
+            viewRect.TopLeft = FixProportions(viewRect.TopLeft, viewRect.BottomRight, UnderCursor.Pin.CropRect.Value.Size);
         if (CurrentHitZone is HitZone.TopRight)
-            viewRect.TopRight = FixProportions(viewRect.TopRight, viewRect.BottomLeft, UnderCursor.OriginalSize);
+            viewRect.TopRight = FixProportions(viewRect.TopRight, viewRect.BottomLeft, UnderCursor.Pin.CropRect.Value.Size);
         if (CurrentHitZone is HitZone.BottomRight)
-            viewRect.BottomRight = FixProportions(viewRect.BottomRight, viewRect.TopLeft, UnderCursor.OriginalSize);
+            viewRect.BottomRight = FixProportions(viewRect.BottomRight, viewRect.TopLeft, UnderCursor.Pin.CropRect.Value.Size);
         if (CurrentHitZone is HitZone.BottomLeft)
-            viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, UnderCursor.OriginalSize);
+            viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, UnderCursor.Pin.CropRect.Value.Size);
 
-        UnderCursor.Center = _viewModel.ViewBoardTransform.TransformPoint(viewRect.Center);
-        var boardSize = _viewModel.ViewBoardTransform.TransformSize(viewRect.Size);
+        UnderCursor.Pin.Edit(
+            pin =>
+            {
+                pin.Center = _viewModel.ViewBoardTransform.TransformPoint(viewRect.Center);
+                var boardSize = _viewModel.ViewBoardTransform.TransformSize(viewRect.Size);
 
-        if (CurrentHitZone is HitZone.Top or HitZone.Bottom)
-            UnderCursor.Scale = boardSize.Height / UnderCursor.OriginalSize.Height;
-        else
-            UnderCursor.Scale = boardSize.Width / UnderCursor.OriginalSize.Width;
+                if (CurrentHitZone is HitZone.Top or HitZone.Bottom)
+                    pin.Scale = boardSize.Height / pin.CropRect.Value.Height;
+                else
+                    pin.Scale = boardSize.Width / pin.CropRect.Value.Width;
+            });
     }
 
     private static PointF FixProportions(PointF guess, PointF anchor, SizeF original)
@@ -256,13 +286,28 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         return anchor + new SizeF(original.Width * scale * Math.Sign(diff.X), original.Height * scale * Math.Sign(diff.Y));
     }
 
-    private void DrawPin(Pin pin, Graphics g)
+    private void DrawPin(PinViewModel pinView, Graphics g)
     {
         var boardViewTransform = _viewModel.BoardViewTransform;
-        pin.Render(g, boardViewTransform);
-
-        RectangleF r = pin.GetViewBounds(boardViewTransform);
-        if (pin == UnderCursor)
+        RectangleF r;
+        
+        if (pinView.Image != null)
+        {
+            r = boardViewTransform.TransformRectangle(pinView.DisplayRect.Value); 
+            g.DrawImage(pinView.Image, pinView.Pin.CropRect.Value, r);
+        }
+        else if (pinView.Icon != null)
+        {
+            var location = boardViewTransform.TransformPoint(pinView.Pin.Center) - pinView.Icon.Size / 2;
+            g.DrawImage(pinView.Icon, location);
+            r = new RectangleF(location, pinView.Icon.Size);
+        }
+        else
+        {
+            return;
+        }
+        
+        if (pinView == UnderCursor)
         {
             r.BottomRight -= 1;
             var path = GraphicsPath.GetRoundRect(r, 3);
@@ -279,23 +324,23 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private bool PullForwardCanExecute()
     {
-        return UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor) < _board.Pins.Count - 1;
+        return UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor?.Pin) < _board.Pins.Count - 1;
     }
 
     private void PullForwardExecute(object? sender, EventArgs e)
     {
-        var i = _board.Pins.Items.IndexOf(UnderCursor);
+        var i = _board.Pins.Items.IndexOf(UnderCursor?.Pin);
         _board.Pins.Move(i, i + 1);
     }
 
     private bool PushBackCanExecute()
     {
-        return UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor) > 0;
+        return UnderCursor != null && _board.Pins.Items.IndexOf(UnderCursor.Pin) > 0;
     }
 
     private void PushBackExecute(object? sender, EventArgs e)
     {
-        var i = _board.Pins.Items.IndexOf(UnderCursor);
+        var i = _board.Pins.Items.IndexOf(UnderCursor?.Pin);
         _board.Pins.Move(i, i - 1);
     }
 
@@ -306,12 +351,12 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void DelPinExecute(object? sender, EventArgs e)
     {
-        _board.Pins.Remove(UnderCursor!);
+        _board.Pins.Remove(UnderCursor?.Pin);
     }
 
     private bool CropCanExecute()
     {
-        return UnderCursor is { CanCrop: true };
+        return UnderCursor?.Image != null;
     }
 
     private void CropExecute(object? sender, EventArgs e)

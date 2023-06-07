@@ -1,7 +1,8 @@
 using Eto.Drawing;
 using Eto.Forms;
+using PinBoard.Models;
 
-namespace PinBoard;
+namespace PinBoard.Util;
 
 public static class Utils
 {

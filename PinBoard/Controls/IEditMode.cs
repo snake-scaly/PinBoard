@@ -2,7 +2,7 @@ using System.Reactive;
 using Eto.Drawing;
 using Eto.Forms;
 
-namespace PinBoard;
+namespace PinBoard.Controls;
 
 public interface IEditMode : IDisposable
 {

@@ -1,6 +1,6 @@
 using Eto.Drawing;
 
-namespace PinBoard;
+namespace PinBoard.Models;
 
 public class Settings
 {

@@ -1,3 +1,5 @@
+using PinBoard.Models;
+
 namespace PinBoard.Services;
 
 public interface IBoardFileService

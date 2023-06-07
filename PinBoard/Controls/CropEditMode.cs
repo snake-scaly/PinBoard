@@ -4,13 +4,16 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Eto.Drawing;
 using Eto.Forms;
+using PinBoard.Models;
+using PinBoard.Util;
+using PinBoard.ViewModels;
 
-namespace PinBoard;
+namespace PinBoard.Controls;
 
 public sealed class CropEditMode : IEditMode
 {
     private readonly PanZoomModel _viewModel;
-    private readonly Pin _pin;
+    private readonly PinViewModel _pinView;
     private readonly Settings _settings;
     private readonly IEditMode _previousMode;
 
@@ -28,15 +31,17 @@ public sealed class CropEditMode : IEditMode
 
     private readonly CompositeDisposable _disposables = new();
 
-    public CropEditMode(PanZoomModel viewModel, Pin pin, Settings settings, IEditMode previousMode)
+    public CropEditMode(PanZoomModel viewModel, PinViewModel pinView, Settings settings, IEditMode previousMode)
     {
         _viewModel = viewModel;
-        _pin = pin;
+        _pinView = pinView;
         _settings = settings;
         _previousMode = previousMode;
 
-        _imageRect = _pin.GetViewBounds(Matrix.Create(), false);
-        _cropRect = _pin.GetViewBounds(Matrix.Create(), true);
+        _imageRect = new RectangleF(
+            _pinView.Pin.Center - _pinView.Pin.CropRect.Value.Center * _pinView.Pin.Scale.Value,
+            _pinView.Image.Size * _pinView.Pin.Scale.Value);
+        _cropRect = _pinView.DisplayRect.Value;
 
         Cursor = _cursor.DistinctUntilChanged();
 
@@ -76,8 +81,9 @@ public sealed class CropEditMode : IEditMode
         e.Graphics.Clear(_settings.BackgroundColor);
 
         var viewCropRect = _viewModel.BoardViewTransform.TransformRectangle(_cropRect);
+        var viewImageRect = _viewModel.BoardViewTransform.TransformRectangle(_imageRect);
 
-        _pin.Render(e.Graphics, _viewModel.BoardViewTransform, false);
+        e.Graphics.DrawImage(_pinView.Image, viewImageRect);
         foreach (var r in Cutout(e.ClipRectangle, viewCropRect))
             e.Graphics.FillRectangle(new Color(1, 1, 1, .5f), r);
 
@@ -159,7 +165,14 @@ public sealed class CropEditMode : IEditMode
 
     private void DoneExecute(object? sender, EventArgs e)
     {
-        _pin.Crop(_cropRect);
+        var pinCropRect = (_cropRect - _imageRect.TopLeft) / _pinView.Pin.Scale.Value;
+        pinCropRect.Restrict(_pinView.Image.Size);
+        _pinView.Pin.Edit(
+            pin =>
+            {
+                pin.CropRect = (_cropRect - _imageRect.TopLeft) / _pinView.Pin.Scale;
+                pin.Center = _cropRect.Center;
+            });
         _newEditMode.OnNext(_previousMode);
     }
 
