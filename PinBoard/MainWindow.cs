@@ -3,6 +3,7 @@ using Eto.Forms;
 using PinBoard.Controls;
 using PinBoard.Models;
 using PinBoard.Services;
+using PinBoard.UI;
 using PinBoard.ViewModels;
 using ReactiveUI;
 
@@ -14,7 +15,7 @@ public class MainWindow : Form
     private readonly BoardView _boardView;
     private readonly Board _board;
 
-    public MainWindow(IBoardFileService boardFileService, IEditModeFactory editModeFactory)
+    public MainWindow(IBoardFileService boardFileService, IEditModeFactory editModeFactory, Settings settings)
     {
         _boardFileService = boardFileService;
 
@@ -31,8 +32,15 @@ public class MainWindow : Form
                 new TableCell(new Panel(), scaleWidth: true),
                 new TableCell(scalePanel)));
 
+        var bcc = new BoardControlContainer(settings);
+        bcc.BoardControls.Edit(x =>
+        {
+            x.Add(new BoardButton(settings) { Location = new PointF(10, 10), Size = new SizeF(300, 200), Color = Colors.Aqua });
+            x.Add(new BoardButton(settings) { Location = new PointF(150, 50), Size = new SizeF(100, 300), Color = Colors.Honeydew });
+        });
+
         Content = new TableLayout(
-            new TableRow(new TableCell(_boardView)) { ScaleHeight = true },
+            new TableRow(new TableCell(bcc)) { ScaleHeight = true },
             new TableRow(new TableCell(toolbar)));
 
         _boardView.WhenAnyValue(x => x.ViewModel.Scale).Subscribe(x => scaleLabel.Text = x.ToString("P1"));
@@ -53,6 +61,13 @@ public class MainWindow : Form
         var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileCommand, pasteCommand } };
 
         Menu = new MenuBar(fileSubMenu, boardSubMenu);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _board.Dispose();
+        base.Dispose(disposing);
     }
 
     private void OnOpen(object? sender, EventArgs e)
