@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Eto.Drawing;
 using Eto.Forms;
 using PinBoard.Models;
+using PinBoard.Services;
 using ReactiveUI;
 using Splat;
 
@@ -20,7 +21,7 @@ public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public BoardView(Board board, Settings settings)
+    public BoardView(Board board, IEditModeFactory editModeFactory)
     {
         _board = board;
         _canvas = new Drawable().DisposeWith(_disposables);
@@ -35,7 +36,7 @@ public class BoardView : Panel, INotifyPropertyChanged, IEnableLogger
             .Subscribe(x => EditMode.OnPaint(x.EventArgs))
             .DisposeWith(_disposables);
 
-        _editMode = new BoardEditMode(_board, ViewModel, settings);
+        _editMode = editModeFactory.CreateBoardEditMode(_board, ViewModel);
         _editMode.Attach(this);
 
         this.WhenAnyValue(x => x.EditMode.ContextMenu).Subscribe(x => ContextMenu = x).DisposeWith(_disposables);

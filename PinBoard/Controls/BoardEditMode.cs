@@ -6,6 +6,7 @@ using DynamicData;
 using Eto.Drawing;
 using Eto.Forms;
 using PinBoard.Models;
+using PinBoard.Services;
 using PinBoard.Util;
 using PinBoard.ViewModels;
 using ReactiveUI;
@@ -18,6 +19,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     private readonly Board _board;
     private readonly PanZoomModel _viewModel;
     private readonly Settings _settings;
+    private readonly IEditModeFactory _editModeFactory;
 
     private readonly IObservableList<PinViewModel> _pinViews;
     private bool _drag;
@@ -30,11 +32,12 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
     
     private readonly CompositeDisposable _disposables = new();
 
-    public BoardEditMode(Board board, PanZoomModel viewModel, Settings settings)
+    public BoardEditMode(Board board, PanZoomModel viewModel, Settings settings, IEditModeFactory editModeFactory, IPinViewModelFactory pinViewModelFactory)
     {
         _board = board;
         _viewModel = viewModel;
         _settings = settings;
+        _editModeFactory = editModeFactory;
 
         Cursor = this.WhenAnyValue(x => x.CurrentHitZone)
             .Select(Utils.HitZoneToCursor)
@@ -48,7 +51,7 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
         ContextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, cropCommand, delPinCommand);
 
         _pinViews = _board.Pins.Connect()
-            .Transform(x => new PinViewModel(x))
+            .Transform(pinViewModelFactory.CreatePinViewModel)
             .AsObservableList();
         _pinViews.DisposeWith(_disposables);
 
@@ -361,6 +364,6 @@ public sealed class BoardEditMode : ReactiveObject, IEditMode
 
     private void CropExecute(object? sender, EventArgs e)
     {
-        _newEditMode.OnNext(new CropEditMode(_viewModel, UnderCursor!, _settings, this));
+        _newEditMode.OnNext(_editModeFactory.CreateCropEditMode(_viewModel, UnderCursor!, this));
     }
 }

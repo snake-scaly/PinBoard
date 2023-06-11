@@ -3,27 +3,24 @@ using Eto.Forms;
 using PinBoard.Controls;
 using PinBoard.Models;
 using PinBoard.Services;
-using PinBoard.Util;
 using PinBoard.ViewModels;
 using ReactiveUI;
-using Splat;
 
 namespace PinBoard;
 
 public class MainWindow : Form
 {
     private readonly IBoardFileService _boardFileService;
-    private Settings _settings = new();
     private readonly BoardView _boardView;
     private readonly Board _board;
 
-    public MainWindow(IBoardFileService? boardFileService = null)
+    public MainWindow(IBoardFileService boardFileService, IEditModeFactory editModeFactory)
     {
-        _boardFileService = boardFileService ?? Locator.Current.GetRequiredService<IBoardFileService>();
+        _boardFileService = boardFileService;
 
         ClientSize = new Size(800, 600);
         _board = new Board();
-        _boardView = new BoardView(_board, _settings);
+        _boardView = new BoardView(_board, editModeFactory);
         DataContext = new MainViewModel(_board);
         this.BindDataContext(x => x.Title, (MainViewModel x) => x.Title, DualBindingMode.OneWay);
 
@@ -38,6 +35,13 @@ public class MainWindow : Form
             new TableRow(new TableCell(_boardView)) { ScaleHeight = true },
             new TableRow(new TableCell(toolbar)));
 
+        _boardView.WhenAnyValue(x => x.ViewModel.Scale).Subscribe(x => scaleLabel.Text = x.ToString("P1"));
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+
         var openBoardCommand = new Command(OnOpen) { MenuText = "&Open...", Shortcut = Keys.Control | Keys.O };
         var saveBoardCommand = new Command(OnSave) { Parent = this, MenuText = "&Save", Shortcut = Keys.Control | Keys.S };
         saveBoardCommand.BindDataContext(x => x.Enabled, (MainViewModel m) => m.EnableSave, DualBindingMode.OneWay);
@@ -49,8 +53,6 @@ public class MainWindow : Form
         var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileCommand, pasteCommand } };
 
         Menu = new MenuBar(fileSubMenu, boardSubMenu);
-
-        _boardView.WhenAnyValue(x => x.ViewModel.Scale).Subscribe(x => scaleLabel.Text = x.ToString("P1"));
     }
 
     private void OnOpen(object? sender, EventArgs e)

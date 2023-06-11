@@ -1,12 +1,16 @@
 ﻿using System.Reflection;
 using Eto.Forms;
+using Microsoft.Extensions.DependencyInjection;
 using PinBoard;
+using PinBoard.Models;
 using PinBoard.Rx;
 using PinBoard.Services;
 using ReactiveUI;
 using Serilog;
 using Serilog.Events;
 using Splat;
+using Splat.Microsoft.Extensions.DependencyInjection;
+using Splat.Microsoft.Extensions.Logging;
 using Splat.Serilog;
 
 var appName = Assembly.GetExecutingAssembly().GetName().Name;
@@ -24,11 +28,25 @@ var logger = new LoggerConfiguration()
     .WriteTo.File($"{logDir}/{appName}.log", fileSizeLimitBytes: 1 << 20, rollOnFileSizeLimit: true)
     .CreateLogger();
 
-Locator.CurrentMutable.UseSerilogFullLogger(logger);
-Locator.CurrentMutable.RegisterLazySingleton(() => new HttpClient());
-Locator.CurrentMutable.RegisterConstant<IBoardFileService>(new BoardFileService());
+var services = new ServiceCollection();
+services.UseMicrosoftDependencyResolver();
 
+Locator.CurrentMutable.UseSerilogFullLogger(logger);
+services.AddLogging(builder => builder.AddSplat());
+
+services.AddSingleton<Settings>();
+services.AddSingleton<HttpClient>();
+services.AddTransient<MainWindow>();
+services.AddTransient<IBoardFileService, BoardFileService>();
+services.AddTransient<IEditModeFactory, EditModeFactory>();
+services.AddTransient<IPinViewModelFactory, PinViewModelFactory>();
+
+// RxApp static constructor requires a mutable Locator.
 RxApp.MainThreadScheduler = new EtoMainThreadScheduler();
+
+var provider = services.BuildServiceProvider();
+provider.UseMicrosoftDependencyResolver();
+
 var app = new Application();
 app.UIThreadCheckMode = UIThreadCheckMode.Error;
-app.Run(new MainWindow());
+app.Run(provider.GetRequiredService<MainWindow>());

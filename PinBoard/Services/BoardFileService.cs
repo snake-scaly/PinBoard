@@ -1,19 +1,26 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Eto.Drawing;
+using Microsoft.Extensions.Logging;
 using PinBoard.Models;
-using Splat;
 
 namespace PinBoard.Services;
 
-public class BoardFileService : IBoardFileService, IEnableLogger
+public class BoardFileService : IBoardFileService
 {
+    private readonly ILogger<BoardFileService> _logger;
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = true,
     };
+
+    public BoardFileService(ILogger<BoardFileService> logger)
+    {
+        _logger = logger;
+    }
 
     public void Load(Board board, string filename)
     {
@@ -39,7 +46,7 @@ public class BoardFileService : IBoardFileService, IEnableLogger
     public void Save(Board board, string filename)
     {
         if (board.Pins.Items.Any(x => x.Url == null))
-            this.Log().Warn("Unable to save image-only pins, skipping");
+            _logger.LogWarning("Unable to save image-only pins, skipping");
 
         var pinDtoList = board.Pins.Items.Where(x => x.Url != null).Select(PinDto.FromPin).ToList();
         var boardDto = new BoardDto { Pins = pinDtoList };

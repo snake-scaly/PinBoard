@@ -12,13 +12,15 @@ namespace PinBoard.ViewModels;
 
 public sealed class PinViewModel : IDisposable, IEnableLogger
 {
+    private readonly HttpClient _httpClient;
     private readonly Subject<Unit> _updates = new();
     private readonly CompositeDisposable _disposables = new();
 
     private bool _updating;
 
-    public PinViewModel(Pin pin)
+    public PinViewModel(Pin pin, HttpClient httpClient)
     {
+        _httpClient = httpClient;
         Pin = pin;
 
         if (pin.Image != null)
@@ -86,8 +88,7 @@ public sealed class PinViewModel : IDisposable, IEnableLogger
     {
         this.Log().Info("Loading {url}", url);
 
-        var httpClient = Locator.Current.GetService<HttpClient>();
-        var response = httpClient!.GetAsync(url).GetAwaiter().GetResult();
+        var response = _httpClient.GetAsync(url).GetAwaiter().GetResult();
 
         if (response.Content.Headers.ContentType?.ToString().StartsWith("image/") == true)
             return new Bitmap(response.Content.ReadAsStream());
