@@ -120,7 +120,7 @@ public sealed class PinViewModel : IDisposable, IEnableLogger
         try
         {
             (Image, Icon) = (image, null);
-            var cropRect = new RectangleF(default, image.Size);
+            var cropRect = new RectangleF(image.Size);
 
             Pin.Edit(
                 pin =>

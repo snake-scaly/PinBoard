@@ -1,9 +1,12 @@
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using DynamicData;
 using Eto.Forms;
 using PinBoard.Models;
+using PinBoard.Util;
+using ReactiveUI;
 
 namespace PinBoard.UI;
 
@@ -11,9 +14,11 @@ public class BoardControlContainer : Drawable
 {
     private readonly SourceList<BoardControl> _controls = new();
     private readonly CompositeDisposable _disposables = new();
+    private readonly ReactiveValue<BoardControl?> _controlUnderCursor = new();
+    private readonly Subject<Unit> _misclickSubject = new();
 
-    private BoardControl? _controlUnderCursor;
     private bool _mouseCaptured;
+    private bool _insideCaptured;
 
     public BoardControlContainer(Settings settings)
     {
@@ -29,9 +34,17 @@ public class BoardControlContainer : Drawable
             .Merge(controlListChanges.Select(_ => Unit.Default))
             .Subscribe(_ => Invalidate())
             .DisposeWith(_disposables);
+
+        _controlUnderCursor.WhenAnyValue(x => x.Value)
+            .Select(x => x?.Cursor)
+            .Merge(_controlUnderCursor.WhenAnyValue(x => x.Value!.Cursor))
+            .DistinctUntilChanged()
+            .BindTo(this, x => x.Cursor)
+            .DisposeWith(_disposables);
     }
 
     public SourceList<BoardControl> BoardControls => _controls;
+    public IObservable<Unit> Misclick => _misclickSubject.AsObservable();
 
     protected override void Dispose(bool disposing)
     {
@@ -43,43 +56,66 @@ public class BoardControlContainer : Drawable
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        TrackControlUnderCursor(e);
-        _controlUnderCursor?.OnMouseDown(TranslateMouseEventArgs(e, _controlUnderCursor));
-        _mouseCaptured = true;
+        _controlUnderCursor.Value?.OnMouseDown(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+        if (_controlUnderCursor.Value != null)
+        {
+            _mouseCaptured = true;
+            _insideCaptured = true;
+        }
+        else if (e.Buttons == MouseButtons.Primary)
+        {
+            _misclickSubject.OnNext(Unit.Default);
+        }
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
         _mouseCaptured = false;
-        _controlUnderCursor?.OnMouseUp(TranslateMouseEventArgs(e, _controlUnderCursor));
-        TrackControlUnderCursor(e);
+        _controlUnderCursor.Value?.OnMouseUp(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+        if (TrackControlUnderCursor(e))
+            _controlUnderCursor.Value?.OnMouseMove(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        TrackControlUnderCursor(e);
+
+        if (_mouseCaptured)
+        {
+            var inside = _controlUnderCursor.Value!.Bounds.Contains(e.Location);
+            if (inside != _insideCaptured)
+            {
+                if (inside)
+                    _controlUnderCursor.Value.OnMouseEnter(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+                else
+                    _controlUnderCursor.Value.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+                _insideCaptured = inside;
+            }
+        }
+        else
+        {
+            TrackControlUnderCursor(e);
+        }
+
+        _controlUnderCursor.Value?.OnMouseMove(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
     }
 
     protected override void OnMouseEnter(MouseEventArgs e)
     {
         base.OnMouseEnter(e);
-        TrackControlUnderCursor(e);
+        if (_mouseCaptured)
+            _controlUnderCursor.Value?.OnMouseEnter(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+        else
+            TrackControlUnderCursor(e);
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-
-        if (_mouseCaptured)
-        {
-            _mouseCaptured = false;
-            _controlUnderCursor?.OnMouseUp(TranslateMouseEventArgs(e, _controlUnderCursor));
-        }
-
-        _controlUnderCursor?.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor));
-        _controlUnderCursor = null;
+        _controlUnderCursor.Value?.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+        if (!_mouseCaptured)
+            _controlUnderCursor.Value = null;
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -92,36 +128,27 @@ public class BoardControlContainer : Drawable
         }
     }
 
-    private void TrackControlUnderCursor(MouseEventArgs e)
+    private bool TrackControlUnderCursor(MouseEventArgs e)
     {
-        if (_mouseCaptured)
-        {
-            _controlUnderCursor?.OnMouseMove(TranslateMouseEventArgs(e, _controlUnderCursor));
-            return;
-        }
-
         foreach (var control in _controls.Items.Reverse())
         {
             if (control.Bounds.Contains(e.Location))
             {
-                if (control == _controlUnderCursor)
+                if (control != _controlUnderCursor.Value)
                 {
-                    control.OnMouseMove(TranslateMouseEventArgs(e, control));
-                }
-                else
-                {
-                    _controlUnderCursor?.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor));
-                    _controlUnderCursor = control;
+                    _controlUnderCursor.Value?.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+                    _controlUnderCursor.Value = control;
                     control.OnMouseEnter(TranslateMouseEventArgs(e, control));
-                    control.OnMouseMove(TranslateMouseEventArgs(e, control));
+                    return true;
                 }
 
-                return;
+                return false;
             }
         }
 
-        _controlUnderCursor?.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor));
-        _controlUnderCursor = null;
+        _controlUnderCursor.Value?.OnMouseLeave(TranslateMouseEventArgs(e, _controlUnderCursor.Value));
+        _controlUnderCursor.Value = null;
+        return false;
     }
 
     private MouseEventArgs TranslateMouseEventArgs(MouseEventArgs e, BoardControl control)

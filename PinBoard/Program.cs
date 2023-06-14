@@ -40,6 +40,7 @@ services.AddTransient<MainWindow>();
 services.AddTransient<IBoardFileService, BoardFileService>();
 services.AddTransient<IEditModeFactory, EditModeFactory>();
 services.AddTransient<IPinViewModelFactory, PinViewModelFactory>();
+services.AddTransient<IBoardPinFactory, BoardPinFactory>();
 
 // RxApp static constructor requires a mutable Locator.
 RxApp.MainThreadScheduler = new EtoMainThreadScheduler();

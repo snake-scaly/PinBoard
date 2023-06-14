@@ -15,7 +15,7 @@ public class MainWindow : Form
     private readonly BoardView _boardView;
     private readonly Board _board;
 
-    public MainWindow(IBoardFileService boardFileService, IEditModeFactory editModeFactory, Settings settings)
+    public MainWindow(IBoardFileService boardFileService, IEditModeFactory editModeFactory, Settings settings, IBoardPinFactory bpf)
     {
         _boardFileService = boardFileService;
 
@@ -33,11 +33,7 @@ public class MainWindow : Form
                 new TableCell(scalePanel)));
 
         var bcc = new BoardControlContainer(settings);
-        bcc.BoardControls.Edit(x =>
-        {
-            x.Add(new BoardButton(settings) { Location = new PointF(10, 10), Size = new SizeF(300, 200), Color = Colors.Aqua });
-            x.Add(new BoardButton(settings) { Location = new PointF(150, 50), Size = new SizeF(100, 300), Color = Colors.Honeydew });
-        });
+        var mgr = new BoardViewManager(bcc, _board, bpf, settings);
 
         Content = new TableLayout(
             new TableRow(new TableCell(bcc)) { ScaleHeight = true },
@@ -130,7 +126,7 @@ public class MainWindow : Form
         {
             try
             {
-                _boardView.Add(new Uri(filename));
+                _board.Add(new Uri(filename), new RectangleF(ClientSize));
             }
             catch (Exception exception)
             {
@@ -145,6 +141,6 @@ public class MainWindow : Form
     {
         if (Clipboard.Instance.ContainsUris)
             foreach (var uri in Clipboard.Instance.Uris)
-                _boardView.Add(uri);
+                _board.Add(uri, new RectangleF(ClientSize));
     }
 }

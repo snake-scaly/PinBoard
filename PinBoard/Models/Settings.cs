@@ -9,5 +9,7 @@ public class Settings
     public Color ButtonHoverColor{ get; set; } = Color.FromArgb(43, 48, 69);
     public Color ButtonDownColor{ get; set; } = Color.FromArgb(52, 59, 85);
     public Color ButtonBorderColor{ get; set; } = Color.FromArgb(193, 192, 214);
+    public Color ImageOutlineHoverColor { get; set; } = Color.FromArgb(193, 192, 214);
+    public Color ImageOutlineFocusColor { get; set; } = Colors.White;
     public float DragMargin { get; set; } = 10;
 }

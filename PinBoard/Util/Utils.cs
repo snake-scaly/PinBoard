@@ -32,7 +32,7 @@ public static class Utils
         };
     }
 
-    public static Cursor HitZoneToCursor(HitZone hitZone)
+    public static Cursor? HitZoneToCursor(HitZone hitZone)
     {
         return hitZone switch
         {
@@ -45,7 +45,7 @@ public static class Utils
             HitZone.BottomRight => Cursors.SizeBottomRight,
             HitZone.Bottom => Cursors.SizeBottom,
             HitZone.BottomLeft => Cursors.SizeBottomLeft,
-            _ => Cursors.Default
+            _ => null
         };
     }
 }

@@ -24,7 +24,7 @@ public class BoardButton : BoardControl
 
     public override void OnMouseMove(MouseEventArgs e)
     {
-        _over = new RectangleF(default, Size).Contains(e.Location);
+        _over = new RectangleF(Size).Contains(e.Location);
         Invalidate();
     }
 
@@ -50,7 +50,7 @@ public class BoardButton : BoardControl
 
     public override void OnPaint(PaintEventArgs e)
     {
-        var path = GraphicsPath.GetRoundRect(new RectangleF(default, Size), 3);
+        var path = GraphicsPath.GetRoundRect(new RectangleF(Size), 3);
 
         if (_over && _down)
             e.Graphics.FillPath(_settings.ButtonDownColor, path);

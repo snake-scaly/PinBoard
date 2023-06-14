@@ -29,7 +29,7 @@ public class Pin
         Image = image;
         Center = center;
         Scale = scale;
-        CropRect = cropRect ?? new RectangleF(default, image.Size);
+        CropRect = cropRect ?? new RectangleF(image.Size);
     }
 
     public IObservable<Unit> Updates => _updates.AsObservable();
