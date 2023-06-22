@@ -12,11 +12,13 @@ namespace PinBoard.UI;
 public class BoardControl : ReactiveObject, IDisposable
 {
     private readonly Subject<Unit> _invalidated;
+    private readonly Subject<Unit> _closed;
     private bool _disposed;
 
     public BoardControl()
     {
         _invalidated = new Subject<Unit>().DisposeWith(Disposables);
+        _closed = new Subject<Unit>().DisposeWith(Disposables);
     }
 
     ~BoardControl()
@@ -25,6 +27,7 @@ public class BoardControl : ReactiveObject, IDisposable
     }
 
     public IObservable<Unit> Invalidated => _invalidated.AsObservable();
+    public IObservable<Unit> Closed => _closed.AsObservable();
     public PointF Location { get; set; }
     public SizeF Size { get; set; }
     public RectangleF Bounds => new(Location, Size);
@@ -39,7 +42,8 @@ public class BoardControl : ReactiveObject, IDisposable
     public virtual void OnMouseEnter(MouseEventArgs e) {}
     public virtual void OnMouseLeave(MouseEventArgs e) {}
     public virtual void OnPaint(PaintEventArgs e) {}
-    
+    public virtual IDisposable OnContainerAttach(BoardControlContainer c) { return Disposable.Empty; }
+
     public void Invalidate()
     {
         _invalidated.OnNext(default);

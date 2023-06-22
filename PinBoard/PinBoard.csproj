@@ -33,6 +33,12 @@
       <EmbeddedResource Include="Resources\url-error-icon.png" />
       <None Remove="Resources\url-icon.png" />
       <EmbeddedResource Include="Resources\url-icon.png" />
+      <None Remove="Resources\crop-icon.png" />
+      <EmbeddedResource Include="Resources\crop-icon.png" />
+      <None Remove="Resources\delete-icon.png" />
+      <EmbeddedResource Include="Resources\delete-icon.png" />
+      <None Remove="Resources\ok-icon.png" />
+      <EmbeddedResource Include="Resources\ok-icon.png" />
     </ItemGroup>
 
 </Project>

@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using PinBoard.Models;
 using PinBoard.UI;
 
@@ -14,8 +15,21 @@ public class BoardPinFactory : IBoardPinFactory
         _settings = settings;
     }
 
-    public BoardPin CreateBoardPin(Pin pin, PanZoomModel viewModel)
+    public BoardPin CreateBoardPin(
+        Pin pin,
+        PanZoomModel viewModel,
+        ICommand pullForwardCommand,
+        ICommand pushBackCommand,
+        ICommand cropCommand,
+        ICommand deleteCommand)
     {
-        return new BoardPin(_viewModelFactory.CreatePinViewModel(pin), viewModel, _settings);
+        return new BoardPin(
+            _viewModelFactory.CreatePinViewModel(pin),
+            viewModel,
+            pullForwardCommand,
+            pushBackCommand,
+            cropCommand,
+            deleteCommand,
+            _settings);
     }
 }

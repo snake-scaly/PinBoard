@@ -2,6 +2,7 @@ using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Windows.Input;
 using Eto.Drawing;
 using Eto.Forms;
 using PinBoard.Models;
@@ -27,14 +28,22 @@ public class BoardPin : BoardControl
     private bool _didDrag;
     private bool _focused;
 
-    public BoardPin(PinViewModel pin, PanZoomModel viewModel, Settings settings)
+    public BoardPin(
+        PinViewModel pin,
+        PanZoomModel viewModel,
+        ICommand pullForwardCommand,
+        ICommand pushBackCommand,
+        ICommand cropCommand,
+        ICommand deleteCommand,
+        Settings settings)
     {
         _pin = pin;
         _viewModel = viewModel;
         _settings = settings;
 
-        pin.Updates.Merge(_viewModel.Changed.Select(_ => Unit.Default))
-            .Subscribe(_ => OnPinUpdated())
+        pin.Updates.Subscribe(_ => OnPinUpdated())
+            .DisposeWith(Disposables);
+        _viewModel.Changed.Subscribe(_ => OnPinUpdated())
             .DisposeWith(Disposables);
 
         _hitZone.WhenAnyValue(x => x.Value)
@@ -42,18 +51,18 @@ public class BoardPin : BoardControl
             .BindTo(this, x => x.Cursor)
             .DisposeWith(Disposables);
 
-        var pullForwardCommand = new Command/*(PullForwardExecute)*/ { MenuText = "Pull Forward" };
-        var pushBackCommand = new Command/*(PushBackExecute)*/ { MenuText = "Push Back" };
-        var cropCommand = new Command/*(CropExecute)*/ { MenuText = "Crop" };
-        var delPinCommand = new Command/*(DelPinExecute)*/ { MenuText = "Close" };
+        var pullForwardMenuItem = new Command { MenuText = "Pull Forward", DelegatedCommand = pullForwardCommand, CommandParameter = this };
+        var pushBackMenuItem = new Command { MenuText = "Push Back", DelegatedCommand = pushBackCommand, CommandParameter = this };
+        var cropMenuItem = new Command { MenuText = "Crop", DelegatedCommand = cropCommand, CommandParameter = this };
+        var delPinMenuItem = new Command { MenuText = "Close", DelegatedCommand = deleteCommand, CommandParameter = this };
 
-        _contextMenu = new ContextMenu(pullForwardCommand, pushBackCommand, cropCommand, delPinCommand);
+        _contextMenu = new ContextMenu(pullForwardMenuItem, pushBackMenuItem, cropMenuItem, delPinMenuItem);
 
         OnPinUpdated();
     }
     
     public IObservable<Unit> Click => _clickSubject.AsObservable();
-    public Pin Pin => _pin.Pin;
+    public PinViewModel PinViewModel => _pin;
 
     public void SetFocus(bool focus)
     {

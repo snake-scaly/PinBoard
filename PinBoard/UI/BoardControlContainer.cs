@@ -12,8 +12,9 @@ namespace PinBoard.UI;
 
 public class BoardControlContainer : Drawable
 {
-    private readonly SourceList<BoardControl> _controls = new();
     private readonly CompositeDisposable _disposables = new();
+
+    private readonly SourceList<BoardControl> _controls;
     private readonly ReactiveValue<BoardControl?> _controlUnderCursor = new();
     private readonly Subject<Unit> _misclickSubject = new();
 
@@ -24,14 +25,20 @@ public class BoardControlContainer : Drawable
     {
         BackgroundColor = settings.BackgroundColor;
 
-        _controls.DisposeWith(_disposables);
+        _controls = new SourceList<BoardControl>()
+            .DisposeWith(_disposables);
 
-        var controlListChanges = _controls.Connect()
-            .Publish();
-        controlListChanges.Connect();
-
-        controlListChanges.MergeMany(x => x.Invalidated)
-            .Merge(controlListChanges.Select(_ => Unit.Default))
+        _controls.Connect()
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .SubscribeMany(
+                x =>
+                {
+                    var invalidatedSubscription = x.Invalidated.Subscribe(_ => Invalidate());
+                    var closedSubscription = x.Closed.Subscribe(_ => BoardControls.Remove(x));
+                    var detachDisposable = x.OnContainerAttach(this);
+                    var removeDisposable = new CallbackDisposable(() => OnControlRemoved(x), RxApp.MainThreadScheduler);
+                    return new CompositeDisposable(invalidatedSubscription, closedSubscription, detachDisposable, removeDisposable);
+                })
             .Subscribe(_ => Invalidate())
             .DisposeWith(_disposables);
 
@@ -120,11 +127,14 @@ public class BoardControlContainer : Drawable
 
     protected override void OnPaint(PaintEventArgs e)
     {
+        var clipRect = e.ClipRectangle;
         foreach (var control in _controls.Items)
         {
             using var saveTransform = e.Graphics.SaveTransformState();
             e.Graphics.TranslateTransform(control.Location);
-            control.OnPaint(new PaintEventArgs(e.Graphics, e.Graphics.ClipBounds));
+            var controlClip = clipRect;
+            controlClip.Offset(-control.Location);
+            control.OnPaint(new PaintEventArgs(e.Graphics, controlClip));
         }
     }
 
@@ -151,7 +161,16 @@ public class BoardControlContainer : Drawable
         return false;
     }
 
-    private MouseEventArgs TranslateMouseEventArgs(MouseEventArgs e, BoardControl control)
+    private void OnControlRemoved(BoardControl control)
+    {
+        if (_controlUnderCursor.Value == control)
+        {
+            _controlUnderCursor.Value = null;
+            _mouseCaptured = false;
+        }
+    }
+
+    private static MouseEventArgs TranslateMouseEventArgs(MouseEventArgs e, BoardControl control)
     {
         return new MouseEventArgs(e.Buttons, e.Modifiers, e.Location - control.Location, e.Delta, e.Pressure);
     }

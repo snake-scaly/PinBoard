@@ -43,7 +43,7 @@ public static class ObservableListFocusExtensions
         public IDisposable Subscribe(IObserver<IChangeSet<T>> observer)
         {
             var subscription = _source.Subscribe(x => HandleChange(x, observer));
-            var focus = _controller.WhenAnyValue(x => x.Focus.Value).Subscribe(x => HandleFocus(x, observer));
+            var focus = _controller.Focus.WhenAnyValue(x => x.Value).Subscribe(x => HandleFocus(x, observer));
             return new CompositeDisposable(subscription, focus);
         }
 

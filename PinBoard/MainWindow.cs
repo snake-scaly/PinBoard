@@ -1,27 +1,24 @@
 using Eto.Drawing;
 using Eto.Forms;
-using PinBoard.Controls;
 using PinBoard.Models;
 using PinBoard.Services;
 using PinBoard.UI;
 using PinBoard.ViewModels;
-using ReactiveUI;
 
 namespace PinBoard;
 
 public class MainWindow : Form
 {
     private readonly IBoardFileService _boardFileService;
-    private readonly BoardView _boardView;
     private readonly Board _board;
+    private readonly BoardOrchestrator _orchestrator;
 
-    public MainWindow(IBoardFileService boardFileService, IEditModeFactory editModeFactory, Settings settings, IBoardPinFactory bpf)
+    public MainWindow(IBoardFileService boardFileService, Settings settings, IBoardPinFactory bpf)
     {
         _boardFileService = boardFileService;
 
         ClientSize = new Size(800, 600);
         _board = new Board();
-        _boardView = new BoardView(_board, editModeFactory);
         DataContext = new MainViewModel(_board);
         this.BindDataContext(x => x.Title, (MainViewModel x) => x.Title, DualBindingMode.OneWay);
 
@@ -33,30 +30,35 @@ public class MainWindow : Form
                 new TableCell(scalePanel)));
 
         var bcc = new BoardControlContainer(settings);
-        var mgr = new BoardViewManager(bcc, _board, bpf, settings);
+        _orchestrator = new BoardOrchestrator(_board, bpf, bcc, settings);
 
         Content = new TableLayout(
             new TableRow(new TableCell(bcc)) { ScaleHeight = true },
             new TableRow(new TableCell(toolbar)));
-
-        _boardView.WhenAnyValue(x => x.ViewModel.Scale).Subscribe(x => scaleLabel.Text = x.ToString("P1"));
     }
 
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
 
-        var openBoardCommand = new Command(OnOpen) { MenuText = "&Open...", Shortcut = Keys.Control | Keys.O };
-        var saveBoardCommand = new Command(OnSave) { Parent = this, MenuText = "&Save", Shortcut = Keys.Control | Keys.S };
-        saveBoardCommand.BindDataContext(x => x.Enabled, (MainViewModel m) => m.EnableSave, DualBindingMode.OneWay);
-        var saveBoardAsCommand = new Command(OnSaveAs) { MenuText = "Save &As...", Shortcut = Keys.Control | Keys.Shift | Keys.S };
-        var exitCommand = new Command((_, _) => Application.Instance.Quit()) { MenuText = "E&xit", Shortcut = Keys.Alt | Keys.F4 };
-        var fileSubMenu = new SubMenuItem { Text = "&File", Items = { openBoardCommand, saveBoardCommand, saveBoardAsCommand, new SeparatorMenuItem(), exitCommand } };
-        var pinFileCommand = new Command(OnPinFile) { MenuText = "Pin F&iles...", Shortcut = Keys.Control | Keys.I };
-        var pasteCommand = new Command(OnPaste) { MenuText = "&Paste", Shortcut = Keys.Control | Keys.V };
-        var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileCommand, pasteCommand } };
+        var openBoardMenuItem = new Command(OnOpen) { MenuText = "&Open...", Shortcut = Keys.Control | Keys.O };
+        var saveBoardMenuItem = new Command(OnSave) { Parent = this, MenuText = "&Save", Shortcut = Keys.Control | Keys.S };
+        saveBoardMenuItem.BindDataContext(x => x.Enabled, (MainViewModel m) => m.EnableSave, DualBindingMode.OneWay);
+        var saveBoardAsMenuItem = new Command(OnSaveAs) { MenuText = "Save &As...", Shortcut = Keys.Control | Keys.Shift | Keys.S };
+        var exitMenuItem = new Command((_, _) => Application.Instance.Quit()) { MenuText = "E&xit", Shortcut = Keys.Alt | Keys.F4 };
+        var fileSubMenu = new SubMenuItem { Text = "&File", Items = { openBoardMenuItem, saveBoardMenuItem, saveBoardAsMenuItem, new SeparatorMenuItem(), exitMenuItem } };
 
-        Menu = new MenuBar(fileSubMenu, boardSubMenu);
+        var pullForwardMenuItem = new Command { MenuText = "Pull &Forward", DelegatedCommand = _orchestrator.PullForwardCommand };
+        var pushBackMenuItem = new Command { MenuText = "Push &Back", DelegatedCommand = _orchestrator.PushBackCommand };
+        var cropMenuItem = new Command { MenuText = "&Crop", DelegatedCommand = _orchestrator.CropCommand };
+        var deleteMenuItem = new Command { MenuText = "&Delete", DelegatedCommand = _orchestrator.DeleteCommand };
+        var editSubMenu = new SubMenuItem { Text = "&Edit", Items = { pullForwardMenuItem, pushBackMenuItem, cropMenuItem, deleteMenuItem } };
+
+        var pinFileMenuItem = new Command(OnPinFile) { MenuText = "Pin F&iles...", Shortcut = Keys.Control | Keys.I };
+        var pasteMenuItem = new Command(OnPaste) { MenuText = "&Paste", Shortcut = Keys.Control | Keys.V };
+        var boardSubMenu = new SubMenuItem { Text = "&Board", Items = { pinFileMenuItem, pasteMenuItem } };
+
+        Menu = new MenuBar(fileSubMenu, editSubMenu, boardSubMenu);
     }
 
     protected override void Dispose(bool disposing)
