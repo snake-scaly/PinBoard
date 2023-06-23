@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Windows.Input;
 using DynamicData;
 using Eto.Drawing;
@@ -8,11 +9,14 @@ using PinBoard.Services;
 using PinBoard.Util;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
+using Settings = PinBoard.Models.Settings;
 
 namespace PinBoard.UI;
 
 public sealed class BoardViewManager : ReactiveObject, IDisposable
 {
+    private readonly Board _board;
+    private readonly PanZoomModel _viewModel;
     private readonly CompositeDisposable _disposables = new();
 
     private readonly IObservableList<BoardPin> _displayList;
@@ -33,6 +37,8 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
         ICommand deleteCommand,
         Settings settings)
     {
+        _board = board;
+        _viewModel = viewModel;
         _focusSubscription = new SerialDisposable().DisposeWith(_disposables);
 
         _cropButton = new BoardButton("crop-icon.png", settings, cropCommand) { Size = new SizeF(30, 30) }
@@ -66,6 +72,7 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
     public IDisposable Show(BoardControlContainer container)
     {
         _controlContainer = container;
+        _controlContainer.AllowDrop = true;
 
         var displayListPopulator = _displayList.Connect()
             .Cast(x => (BoardControl)x)
@@ -82,15 +89,29 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
             DualBindingMode.OneWayToSource);
         var resizeSubscription = new CallbackDisposable(() => resizeBinding.Unbind());
 
+        var dragEnterSubscription =
+            Observable.FromEventPattern<DragEventArgs>(_controlContainer, nameof(_controlContainer.DragEnter))
+                .Subscribe(e => OnDragEnter(e.Sender, e.EventArgs));
+        var dragDropSubscription =
+            Observable.FromEventPattern<DragEventArgs>(_controlContainer, nameof(_controlContainer.DragDrop))
+                .Subscribe(e => OnDragDrop(e.Sender, e.EventArgs));
+
         var hideDisposable = new CallbackDisposable(
             () =>
             {
+                _controlContainer.AllowDrop = false;
                 _controlContainer.BoardControls.RemoveRange(0, _displayList.Count);
                 HideFocus();
                 _controlContainer = null;
             });
 
-        return new CompositeDisposable(displayListPopulator, misclickSubscription, resizeSubscription, hideDisposable);
+        return new CompositeDisposable(
+            displayListPopulator,
+            misclickSubscription,
+            resizeSubscription,
+            dragEnterSubscription,
+            dragDropSubscription,
+            hideDisposable);
     }
 
     private void SetFocus(BoardPin? pin)
@@ -159,5 +180,35 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
     {
         if (bp == Focused)
             SetFocus(null);
+    }
+
+    private void OnDragEnter(object? sender, DragEventArgs e)
+    {
+        e.Effects = e.AllowedEffects & DragEffects.Copy | DragEffects.Link;
+    }
+
+    private void OnDragDrop(object? sender, DragEventArgs e)
+    {
+        var control = sender as Control ?? throw new InvalidOperationException("Sender is not a control");
+
+        var boardLocation = _viewModel.ViewBoardTransform.TransformPoint(e.Location);
+        var boardViewport = _viewModel.ViewBoardTransform.TransformRectangle(new RectangleF(default, control.Size));
+
+        if (e.Data.ContainsImage)
+        {
+            _board.Add(e.Data.Image, boardViewport, boardLocation);
+        }
+        else if (e.Data.ContainsUris)
+        {
+            if (e.Data.Uris.Length == 1)
+                _board.Add(e.Data.Uris[0], boardViewport, boardLocation);
+            else
+                foreach (var uri in e.Data.Uris)
+                    _board.Add(uri, boardViewport);
+        }
+        else if (e.Data.ContainsText)
+        {
+            _board.Add(new Uri(e.Data.Text), boardViewport, boardLocation);
+        }
     }
 }
