@@ -152,9 +152,8 @@ public class BoardPin : BoardControl
     public override void OnMouseEnter(MouseEventArgs e)
     {
         _hover = true;
-        if (!_drag)
-            UpdateHitZone(e);
         Invalidate();
+        OnMouseMove(e);
     }
 
     public override void OnMouseLeave(MouseEventArgs e)

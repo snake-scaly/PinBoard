@@ -111,6 +111,11 @@ public class BoardPinCropEditor : BoardControl
         }
     }
 
+    public override void OnMouseEnter(MouseEventArgs e)
+    {
+        OnMouseMove(e);
+    }
+
     public override void OnMouseLeave(MouseEventArgs e)
     {
         if (!_drag && _hitZone.Value is not HitZone.Outside)
