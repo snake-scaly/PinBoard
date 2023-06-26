@@ -1,26 +1,29 @@
+using System.Net;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.RegularExpressions;
 using Eto.Drawing;
+using Microsoft.Extensions.Logging;
 using PinBoard.Models;
 using ReactiveUI;
-using Splat;
 
 namespace PinBoard.ViewModels;
 
-public sealed class PinViewModel : IDisposable, IEnableLogger
+public sealed class PinViewModel : IDisposable
 {
     private readonly HttpClient _httpClient;
+    private readonly ILogger<PinViewModel> _logger;
     private readonly Subject<Unit> _updates = new();
     private readonly CompositeDisposable _disposables = new();
 
     private bool _updating;
 
-    public PinViewModel(Pin pin, HttpClient httpClient)
+    public PinViewModel(Pin pin, HttpClient httpClient, ILogger<PinViewModel> logger)
     {
         _httpClient = httpClient;
+        _logger = logger;
         Pin = pin;
 
         if (pin.Image != null)
@@ -55,7 +58,7 @@ public sealed class PinViewModel : IDisposable, IEnableLogger
         {
             if (Pin.CropRect == null)
                 return null;
-            var r = Pin.CropRect.Value * Pin.Scale.Value;
+            var r = Pin.CropRect.Value * Pin.Scale!.Value;
             r.Center = Pin.Center;
             return r;
         }
@@ -74,21 +77,31 @@ public sealed class PinViewModel : IDisposable, IEnableLogger
         {
             var bitmap = await Observable.Start(() => LoadSync(url))
                 .ObserveOn(RxApp.MainThreadScheduler);
-            SetImage(bitmap);
-            _updates.OnNext(default);
+            if (bitmap != null)
+                SetImage(bitmap);
+            else
+                Icon = Bitmap.FromResource("PinBoard.Resources.url-error-icon.png");
         }
         catch (Exception e)
         {
-            this.Log().Error(e, "Bitmap load failed");
+            _logger.LogError("Bitmap load failed: {msg}", e.Message);
             Icon = Bitmap.FromResource("PinBoard.Resources.url-error-icon.png");
         }
+
+        _updates.OnNext(default);
     }
 
-    private Bitmap LoadSync(Uri url)
+    private Bitmap? LoadSync(Uri url)
     {
-        this.Log().Info("Loading {url}", url);
+        _logger.LogInformation("Loading {url}", url);
 
         var response = _httpClient.GetAsync(url).GetAwaiter().GetResult();
+
+        if (response.StatusCode is HttpStatusCode.Forbidden)
+        {
+            _logger.LogError("Forbidden");
+            return null;
+        }
 
         if (response.Content.Headers.ContentType?.ToString().StartsWith("image/") == true)
             return new Bitmap(response.Content.ReadAsStream());
@@ -97,7 +110,7 @@ public sealed class PinViewModel : IDisposable, IEnableLogger
         if (response.Content.Headers.ContentType?.ToString().StartsWith("text/html") == true)
         {
             var html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            this.Log().Debug("Got text/html {html}", html);
+            _logger.LogDebug("Got text/html {html}", html);
 
             var match = Regex.Match(html, @"imageUrl='([^?']*)");
             if (match.Success)
@@ -107,10 +120,13 @@ public sealed class PinViewModel : IDisposable, IEnableLogger
             if (match.Success)
                 return LoadSync(new Uri(match.Groups[1].Value));
 
-            throw new Exception("No match found");
+            _logger.LogError("No image found in search");
+            _logger.LogDebug("{html}", html);
+            return null;
         }
 
-        throw new Exception($"Not an image: {response.Content.Headers.ContentType}\n{response.Content.ReadAsStringAsync().GetAwaiter().GetResult()}");
+        _logger.LogError("Unsupported content type {contentType}", response.Content.Headers.ContentType);
+        return null;
     }
 
     private void SetImage(Image image)
