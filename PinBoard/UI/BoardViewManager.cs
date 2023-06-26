@@ -17,6 +17,7 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
 {
     private readonly Board _board;
     private readonly PanZoomModel _viewModel;
+    private readonly Settings _settings;
     private readonly CompositeDisposable _disposables = new();
 
     private readonly IObservableList<BoardPin> _displayList;
@@ -39,6 +40,7 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
     {
         _board = board;
         _viewModel = viewModel;
+        _settings = settings;
         _focusSubscription = new SerialDisposable().DisposeWith(_disposables);
 
         _cropButton = new BoardButton("crop-icon.png", settings, cropCommand) { Size = new SizeF(30, 30) }
@@ -162,8 +164,11 @@ public sealed class BoardViewManager : ReactiveObject, IDisposable
         if (_controlContainer == null || Focused == null)
             return;
 
+        var r = Focused.Bounds;
+        if (Focused.PinViewModel.Image == null)
+            r.Inflate(_settings.DragMargin, _settings.DragMargin);
         ButtonPlacementHelper.PlaceButtons(
-            Focused.Bounds.MiddleTop, new RectangleF(_controlContainer.ClientSize), _cropButton, _deleteButton);
+            r.MiddleTop, new RectangleF(_controlContainer.ClientSize), _cropButton, _deleteButton);
     }
 
     private void HideFocus()

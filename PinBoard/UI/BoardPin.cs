@@ -98,7 +98,8 @@ public class BoardPin : BoardControl
             _didDrag = true;
 
             var viewRect = new RectangleF(Size);
-            viewRect.Inset(_settings.DragMargin);
+            if (_pin.Image != null)
+                viewRect.Inset(_settings.DragMargin);
             var hitZone = _hitZone.Value;
             var minSize = _settings.DragMargin * 3;
 
@@ -114,13 +115,13 @@ public class BoardPin : BoardControl
                 viewRect.Bottom = Math.Max(e.Location.Y, viewRect.Top + minSize);
 
             if (hitZone is HitZone.TopLeft)
-                viewRect.TopLeft = FixProportions(viewRect.TopLeft, viewRect.BottomRight, _pin.Pin.CropRect.Value.Size);
+                viewRect.TopLeft = FixProportions(viewRect.TopLeft, viewRect.BottomRight, _pin.Pin.CropRect!.Value.Size);
             if (hitZone is HitZone.TopRight)
-                viewRect.TopRight = FixProportions(viewRect.TopRight, viewRect.BottomLeft, _pin.Pin.CropRect.Value.Size);
+                viewRect.TopRight = FixProportions(viewRect.TopRight, viewRect.BottomLeft, _pin.Pin.CropRect!.Value.Size);
             if (hitZone is HitZone.BottomRight)
-                viewRect.BottomRight = FixProportions(viewRect.BottomRight, viewRect.TopLeft, _pin.Pin.CropRect.Value.Size);
+                viewRect.BottomRight = FixProportions(viewRect.BottomRight, viewRect.TopLeft, _pin.Pin.CropRect!.Value.Size);
             if (hitZone is HitZone.BottomLeft)
-                viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, _pin.Pin.CropRect.Value.Size);
+                viewRect.BottomLeft = FixProportions(viewRect.BottomLeft, viewRect.TopRight, _pin.Pin.CropRect!.Value.Size);
 
             viewRect.Offset(Location);
 
@@ -128,12 +129,16 @@ public class BoardPin : BoardControl
                 pin =>
                 {
                     pin.Center = _viewModel.ViewBoardTransform.TransformPoint(viewRect.Center);
+
+                    if (_pin.Image == null)
+                        return;
+
                     var boardSize = _viewModel.ViewBoardTransform.TransformSize(viewRect.Size);
 
                     if (hitZone is HitZone.Top or HitZone.Bottom)
-                        pin.Scale = boardSize.Height / pin.CropRect.Value.Height;
+                        pin.Scale = boardSize.Height / pin.CropRect!.Value.Height;
                     else
-                        pin.Scale = boardSize.Width / pin.CropRect.Value.Width;
+                        pin.Scale = boardSize.Width / pin.CropRect!.Value.Width;
                 });
 
             Invalidate();
@@ -163,12 +168,16 @@ public class BoardPin : BoardControl
     public override void OnPaint(PaintEventArgs e)
     {
         var r = new RectangleF(Size);
-        r.Inset(_settings.DragMargin);
 
         if (_pin.Image != null)
+        {
+            r.Inset(_settings.DragMargin);
             e.Graphics.DrawImage(_pin.Image, _pin.Pin.CropRect ?? new RectangleF(_pin.Image.Size), r);
+        }
         else if (_pin.Icon != null)
+        {
             e.Graphics.DrawImage(_pin.Icon, r.Location);
+        }
 
         r.TopLeft -= 1;
         var p = GraphicsPath.GetRoundRect(r, 3);
