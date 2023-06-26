@@ -93,6 +93,7 @@ public sealed class BoardOrchestrator : IDisposable
     public ICommand PushBackCommand => _pushBackCommand;
     public ICommand CropCommand => _cropCommand;
     public ICommand DeleteCommand => _deleteCommand;
+    public PanZoomModel ViewModel => _viewModel;
 
     public void Dispose()
     {

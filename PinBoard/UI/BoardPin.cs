@@ -54,7 +54,7 @@ public class BoardPin : BoardControl
         var pullForwardMenuItem = new Command { MenuText = "Pull Forward", DelegatedCommand = pullForwardCommand, CommandParameter = this };
         var pushBackMenuItem = new Command { MenuText = "Push Back", DelegatedCommand = pushBackCommand, CommandParameter = this };
         var cropMenuItem = new Command { MenuText = "Crop", DelegatedCommand = cropCommand, CommandParameter = this };
-        var delPinMenuItem = new Command { MenuText = "Close", DelegatedCommand = deleteCommand, CommandParameter = this };
+        var delPinMenuItem = new Command { MenuText = "Delete", DelegatedCommand = deleteCommand, CommandParameter = this };
 
         _contextMenu = new ContextMenu(pullForwardMenuItem, pushBackMenuItem, cropMenuItem, delPinMenuItem);
 

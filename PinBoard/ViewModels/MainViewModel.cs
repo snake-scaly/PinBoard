@@ -11,7 +11,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 {
     private readonly CompositeDisposable _disposables = new();
 
-    public MainViewModel(Board board)
+    public MainViewModel(Board board, PanZoomModel viewModel)
     {
         board.WhenAnyValue(x => x.Filename, x => x.Modified)
             .Select(x =>
@@ -27,6 +27,11 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         board.WhenAnyValue(x => x.Modified)
             .ToPropertyEx(this, x => x.EnableSave)
             .DisposeWith(_disposables);
+
+        viewModel.WhenAnyValue(x => x.Scale)
+            .Select(x => x.ToString("P0"))
+            .ToPropertyEx(this, x => x.Scale)
+            .DisposeWith(_disposables);
     }
 
     [ObservableAsProperty]
@@ -34,6 +39,9 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 
     [ObservableAsProperty]
     public bool EnableSave { get; }
+
+    [ObservableAsProperty]
+    public string Scale { get; }
 
     public void Dispose()
     {
