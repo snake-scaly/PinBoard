@@ -140,16 +140,15 @@ public class BoardPin : BoardControl
         }
         else
         {
-            if (_pin.Image != null)
-                _hitZone.Value = Utils.HitTest(new RectangleF(Size), e.Location, _settings.DragMargin * 2);
-            else
-                _hitZone.Value = HitZone.Center;
+            UpdateHitZone(e);
         }
     }
 
     public override void OnMouseEnter(MouseEventArgs e)
     {
         _hover = true;
+        if (!_drag)
+            UpdateHitZone(e);
         Invalidate();
     }
 
@@ -218,5 +217,13 @@ public class BoardPin : BoardControl
         var scale = Math.Max(Math.Abs(diff.X) / original.Width, Math.Abs(diff.Y) / original.Height);
         scale = Math.Max(scale, .01f);
         return anchor + new SizeF(original.Width * scale * Math.Sign(diff.X), original.Height * scale * Math.Sign(diff.Y));
+    }
+
+    private void UpdateHitZone(MouseEventArgs e)
+    {
+        if (_pin.Image != null)
+            _hitZone.Value = Utils.HitTest(new RectangleF(Size), e.Location, _settings.DragMargin * 2);
+        else
+            _hitZone.Value = HitZone.Center;
     }
 }
