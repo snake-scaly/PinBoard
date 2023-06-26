@@ -86,18 +86,18 @@ public class BoardPinCropEditor : BoardControl
             {
                 cropRect.Location =
                     new PointF(
-                        Math.Clamp(boardLocation.X + _dragOffset.X, ImageRect.Left, ImageRect.Right - cropRect.Width),
-                        Math.Clamp(boardLocation.Y + _dragOffset.Y, ImageRect.Top, ImageRect.Bottom - cropRect.Height));
+                        ClampSafe(boardLocation.X + _dragOffset.X, ImageRect.Left, ImageRect.Right - cropRect.Width),
+                        ClampSafe(boardLocation.Y + _dragOffset.Y, ImageRect.Top, ImageRect.Bottom - cropRect.Height));
             }
 
             if (_hitZone.Value is HitZone.Left or HitZone.TopLeft or HitZone.BottomLeft)
-                cropRect.Left = Math.Clamp(boardLocation.X, ImageRect.Left, cropRect.Right - minSize);
+                cropRect.Left = ClampSafe(boardLocation.X, ImageRect.Left, cropRect.Right - minSize);
             if (_hitZone.Value is HitZone.Top or HitZone.TopLeft or HitZone.TopRight)
-                cropRect.Top = Math.Clamp(boardLocation.Y, ImageRect.Top, cropRect.Bottom - minSize);
+                cropRect.Top = ClampSafe(boardLocation.Y, ImageRect.Top, cropRect.Bottom - minSize);
             if (_hitZone.Value is HitZone.Right or HitZone.TopRight or HitZone.BottomRight)
-                cropRect.Right = Math.Clamp(boardLocation.X, cropRect.Left + minSize, ImageRect.Right);
+                cropRect.Right = ClampSafe(boardLocation.X, cropRect.Left + minSize, ImageRect.Right);
             if (_hitZone.Value is HitZone.Bottom or HitZone.BottomLeft or HitZone.BottomRight)
-                cropRect.Bottom = Math.Clamp(boardLocation.Y, cropRect.Top + minSize, ImageRect.Bottom);
+                cropRect.Bottom = ClampSafe(boardLocation.Y, cropRect.Top + minSize, ImageRect.Bottom);
 
             CropRect = cropRect;
 
@@ -153,4 +153,6 @@ public class BoardPinCropEditor : BoardControl
         if (hole.Right < rect.Right)
             yield return new RectangleF(hole.Right, hole.Top, rect.Right - hole.Right, hole.Height);
     }
+
+    private static float ClampSafe(float x, float min, float max) => Math.Clamp(x, min, Math.Max(min, max));
 }
